@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UNKNOWN FREQUENCIES | Joy Division Ridgeline Audio Visualizer",
+  title: "unknown frequencies",
   description: "Real-time Web Audio Fourier Transform Ridgeline Visualizer inspired by Joy Division's Unknown Pleasures CP 1919 Pulsar.",
   icons: {
     icon: "/icon.svg",

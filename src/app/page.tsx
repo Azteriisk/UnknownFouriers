@@ -70,8 +70,9 @@ const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: Gra
     name: 'Deep Emerald',
     direction: 'diagonal',
     stops: [
-      { id: '1', color: '#00f2fe', offset: 0.0 },
-      { id: '2', color: '#4facfe', offset: 1.0 },
+      { id: '1', color: '#10b981', offset: 0.0 },
+      { id: '2', color: '#047857', offset: 0.5 },
+      { id: '3', color: '#064e3b', offset: 1.0 },
     ],
   },
 ];
@@ -88,7 +89,7 @@ export default function Home() {
   const [isInputSelectorOpen, setIsInputSelectorOpen] = useState<boolean>(false);
   const [youtubeUrl, setYoutubeUrl] = useState<string>('');
   const [activeYoutubeUrl, setActiveYoutubeUrl] = useState<string | null>(null);
-  const [activePreset, setActivePreset] = useState<PresetTrack>('synth_chords');
+  const [activePreset, setActivePreset] = useState<PresetTrack>('vocal_arpeggio');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   const [config, setConfig] = useState<VisualizerConfig>({
@@ -101,17 +102,16 @@ export default function Home() {
     showSummedWave: true,
     glowBlur: 20,
     fogDensity: 0.5,
-    opacity: 0.85,
-    gradientDirection: 'horizontal',
+    opacity: 0.45,
+    gradientDirection: 'vertical',
     gradientStops: [
-      { id: '1', color: '#ff512f', offset: 0.0 },
-      { id: '2', color: '#f09819', offset: 0.5 },
-      { id: '3', color: '#e74c3c', offset: 1.0 },
+      { id: '1', color: '#ffffff', offset: 0.0 },
+      { id: '2', color: '#666666', offset: 1.0 },
     ],
     sumLineColor: '#ffffff',
     bgColor: '#020204',
-    is3DTilt: false,
-    tiltAngle: 35,
+    is3DTilt: true,
+    tiltAngle: 20,
   });
 
   useEffect(() => {

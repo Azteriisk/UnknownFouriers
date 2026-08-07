@@ -210,6 +210,30 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser to start
 
 ---
 
+## Future Roadmap & Project Horizons
+
+### Completed Core Features & Optimizations
+- **Real-Time 60 FPS Web Audio Ridgeline Engine**: Logarithmic equal-temperament octave pitch mapping with continuous time window slicing ($0.25\,\text{s} - 5.0\,\text{s}$).
+- **TOS-Compliant YouTube Video & Playlist Player**: Official `iframe_api` embedded player with picture-in-picture card.
+- **Client-Side Privacy Guarantee**: 100% in-browser memory audio file processing (`URL.createObjectURL`).
+- **3D Isometric Tilt Perspective Mode**: Pseudo-3D pitch rotation for terrain mapping.
+- **QWERTY Virtual Synth & Web MIDI Keyboard Support**: Polyphonic pure sine wave oscillator synthesis triggering real-time spectral ridgeline decomposition.
+- **4K High-Res Snapshot PNG Exporter**: 1-click $3840\times2160$ canvas poster downloader.
+- **Zero-GC Typed Array Buffer Pool**: Reusable memory pool preventing V8 Garbage Collection micro-stutters.
+- **Background Tab Auto-Suspend**: Auto-pauses `AudioContext` when `document.hidden === true` to save 100% background battery & CPU.
+
+### Future Expansion Roadmap
+1. **Shader-Based WebGL Multi-Pass Additive Bloom**:
+   Migrate multi-pass Canvas 2D stroke bloom loops to custom WebGL fragment shaders for $120\,\text{Hz}+$ high-refresh rate displays.
+2. **Preset Theme Sharing & URL Hash Synchronization**:
+   Save custom multi-stop gradient palettes directly into URL query hashes for instant 1-click social sharing.
+3. **Transient-Driven Atmospheric Fog Pulsing**:
+   Real-time low-frequency kick detection ($20\,\text{Hz}-100\,\text{Hz}$) to modulate volumetric fog density in sync with musical beats.
+4. **Custom Keymap Editor & Microtonal Tuning**:
+   Allow users to remap QWERTY keyboard shortcuts and experiment with non-Western microtonal pitch temperaments.
+
+---
+
 ## License
 
 MIT License: feel free to explore, fork, and build upon this spectral engine!

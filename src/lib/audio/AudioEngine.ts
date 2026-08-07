@@ -275,37 +275,31 @@ export class AudioEngine {
     }
   }
 
-  // Play polyphonic note with ADSR envelope
+  // Play polyphonic note with 1 pure sine wave oscillator
   public noteOn(frequency: number, noteKey: string) {
     if (!this.ctx || !this.analyser || !this.gainNode) return;
-    if (this.activeVoices.has(noteKey)) return; // prevent duplicate trigger
+    if (this.activeVoices.has(noteKey)) return;
 
     const now = this.ctx.currentTime;
 
-    // Dual Oscillator for rich analog synth sound
     const osc1 = this.ctx.createOscillator();
-    const osc2 = this.ctx.createOscillator();
     const vGain = this.ctx.createGain();
 
-    osc1.type = 'sawtooth';
+    // 1 Perfect Pure Sine Wave
+    osc1.type = 'sine';
     osc1.frequency.setValueAtTime(frequency, now);
 
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(frequency * 1.002, now); // subtle detune
-
-    // ADSR Attack envelope
-    vGain.gain.setValueAtTime(0.001, now);
-    vGain.gain.exponentialRampToValueAtTime(0.3, now + 0.04);
+    // Smooth Attack Envelope
+    vGain.gain.setValueAtTime(0.0001, now);
+    vGain.gain.linearRampToValueAtTime(0.25, now + 0.03);
 
     osc1.connect(vGain);
-    osc2.connect(vGain);
     vGain.connect(this.analyser);
     vGain.connect(this.gainNode);
 
     osc1.start(now);
-    osc2.start(now);
 
-    this.activeVoices.set(noteKey, { osc1, osc2, vGain });
+    this.activeVoices.set(noteKey, { osc1, osc2: osc1, vGain });
   }
 
   public noteOff(noteKey: string) {
@@ -322,9 +316,11 @@ export class AudioEngine {
     setTimeout(() => {
       try {
         voice.osc1.stop();
-        voice.osc2.stop();
         voice.osc1.disconnect();
-        voice.osc2.disconnect();
+        if (voice.osc2 && voice.osc2 !== voice.osc1) {
+          voice.osc2.stop();
+          voice.osc2.disconnect();
+        }
         voice.vGain.disconnect();
       } catch { /* ignore */ }
     }, 180);

@@ -267,13 +267,14 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
 
       // 6. Render Combined Waveform Overlay if enabled
       if (config.showSummedWave) {
-        const sumBaseY = centerScreenY - (ridgelineHeight / 2) - (isMobile ? 25 : 40);
+        // Shift sum base line down slightly below header to guarantee 100% zero top window clipping
+        const sumBaseY = centerScreenY - (ridgelineHeight / 2) + (isMobile ? 10 : 20);
         const sumPath = new Path2D();
         let firstA = true;
 
         for (let x = startX; x <= startX + basePlotWidth; x += stepX) {
-          const totalDisp = summedWaveform[Math.floor(x)];
-          const y = sumBaseY - totalDisp;
+          const totalDisp = summedWaveform[Math.floor(x)] * 0.72; // Scaled peak height
+          const y = Math.max(headerHeight + 20, sumBaseY - totalDisp);
           if (firstA) {
             sumPath.moveTo(x, y);
             firstA = false;

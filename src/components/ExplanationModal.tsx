@@ -80,7 +80,7 @@ export const ExplanationModal: React.FC<ExplanationModalProps> = ({ isOpen, onCl
 
         <div className="modal-footer">
           <a
-            href="https://github.com/Azteriisk/sound_stuff"
+            href="https://github.com/Azteriisk/UnknownFouriers"
             target="_blank"
             rel="noopener noreferrer"
             className="github-repo-link"

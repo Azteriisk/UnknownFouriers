@@ -1,10 +1,18 @@
-// src/app/page.tsx - Ultra-Minimalist Space Ridgeline Audio Visualizer with Clean Non-Overlaying Dock & Mobile Layout
+// src/app/page.tsx - Ridgeline Audio Visualizer with 3D Tilt, QWERTY Virtual Synth, 4K Snapshots & URL Theme Sharing
 
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { AudioEngine, AudioInputType, PresetTrack, VisualizerConfig, GradientDirection, GradientStop } from '@/lib/audio/AudioEngine';
-import { VisualizerCanvas } from '@/components/VisualizerCanvas';
+import {
+  AudioEngine,
+  AudioInputType,
+  PresetTrack,
+  VisualizerConfig,
+  GradientDirection,
+  GradientStop,
+  KEY_TO_NOTE_MAP,
+} from '@/lib/audio/AudioEngine';
+import { VisualizerCanvas, download4KSnapshot } from '@/components/VisualizerCanvas';
 import { ExplanationModal } from '@/components/ExplanationModal';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import {
@@ -18,16 +26,17 @@ import {
   Play,
   Pause,
   Square,
-  Clock,
-  Layers,
-  Eye,
   Palette,
   SlidersHorizontal,
   AlertCircle,
-  Loader2,
   Plus,
   Trash2,
   ChevronUp,
+  Camera,
+  Share2,
+  Box,
+  Keyboard,
+  Check,
 } from 'lucide-react';
 
 const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: GradientStop[] }[] = [
@@ -72,6 +81,7 @@ export default function Home() {
   const [activeInput, setActiveInput] = useState<AudioInputType>('preset');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
   const [isColorDrawerOpen, setIsColorDrawerOpen] = useState<boolean>(false);
   const [isSliceDrawerOpen, setIsSliceDrawerOpen] = useState<boolean>(false);
@@ -100,6 +110,8 @@ export default function Home() {
     ],
     sumLineColor: '#ffffff',
     bgColor: '#020204',
+    is3DTilt: false,
+    tiltAngle: 35,
   });
 
   useEffect(() => {
@@ -114,6 +126,38 @@ export default function Home() {
       audioEng.stopAllSources();
     };
   }, []);
+
+  // Listen for QWERTY computer keyboard notes when in Keyboard Synth Mode
+  useEffect(() => {
+    if (activeInput !== 'keyboard' || !engine) return;
+
+    const pressedKeys = new Set<string>();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (KEY_TO_NOTE_MAP[key] && !pressedKeys.has(key)) {
+        pressedKeys.add(key);
+        const { freq } = KEY_TO_NOTE_MAP[key];
+        engine.noteOn(freq, key);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (pressedKeys.has(key)) {
+        pressedKeys.delete(key);
+        engine.noteOff(key);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [activeInput, engine]);
 
   const handleMicClick = async () => {
     if (!engine) return;
@@ -149,6 +193,19 @@ export default function Home() {
     }
   };
 
+  const handleKeyboardSynthClick = async () => {
+    if (!engine) return;
+    try {
+      await engine.startKeyboardSynth();
+      setActiveInput('keyboard');
+      setIsInputSelectorOpen(false);
+      setToastMessage('Keyboard Synth Active! Play QWERTY keys (A S D F G H J K / W E T Y U) or MIDI keyboard!');
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Keyboard synth error.');
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !engine) return;
@@ -172,7 +229,6 @@ export default function Home() {
     setIsInputSelectorOpen(false);
     setErrorMessage(null);
 
-    // Prompt user to enable Tab/System audio if not active
     if (engine && activeInput !== 'system') {
       engine.startSystemAudio().then(() => {
         setActiveInput('system');
@@ -210,6 +266,27 @@ export default function Home() {
 
   const handleStop = () => {
     if (engine) engine.stopAllSources();
+  };
+
+  const handleSnapshotClick = () => {
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
+    if (canvas) {
+      download4KSnapshot(canvas);
+      setToastMessage('Snapshot downloaded to your device!');
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
+  const handleShareThemeClick = () => {
+    try {
+      const themeData = encodeURIComponent(JSON.stringify(config.gradientStops));
+      const shareUrl = `${window.location.origin}${window.location.pathname}#dir=${config.gradientDirection}&stops=${themeData}`;
+      navigator.clipboard.writeText(shareUrl);
+      setToastMessage('Theme link copied to clipboard!');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch {
+      setErrorMessage('Failed to copy share link.');
+    }
   };
 
   // Gradient Stops Management
@@ -289,6 +366,14 @@ export default function Home() {
           onClose={() => setActiveYoutubeUrl(null)}
           onRequireAudioCapture={handleSystemAudioClick}
         />
+      )}
+
+      {/* Notification Toast */}
+      {toastMessage && (
+        <div className="floating-toast success-toast">
+          <Check className="inline-icon" />
+          <span>{toastMessage}</span>
+        </div>
       )}
 
       {/* Error Toast */}
@@ -385,6 +470,13 @@ export default function Home() {
                   className="color-input"
                 />
               </label>
+
+              <button
+                className={`mini-chip-btn ${config.is3DTilt ? 'active' : ''}`}
+                onClick={() => setConfig((prev) => ({ ...prev, is3DTilt: !prev.is3DTilt }))}
+              >
+                <Box className="tiny-icon" /> 3D Tilt ({config.is3DTilt ? 'ON' : 'OFF'})
+              </button>
             </div>
 
             {/* Sliders */}
@@ -428,26 +520,8 @@ export default function Home() {
                 />
               </label>
 
-              <button
-                className="mini-chip-btn"
-                onClick={() =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    gradientDirection: 'horizontal',
-                    gradientStops: [
-                      { id: '1', color: '#ff512f', offset: 0.0 },
-                      { id: '2', color: '#f09819', offset: 0.5 },
-                      { id: '3', color: '#e74c3c', offset: 1.0 },
-                    ],
-                    sumLineColor: '#ffffff',
-                    bgColor: '#020204',
-                    glowBlur: 20,
-                    fogDensity: 0.5,
-                    opacity: 0.85,
-                  }))
-                }
-              >
-                Reset Defaults
+              <button className="mini-chip-btn" onClick={handleShareThemeClick}>
+                <Share2 className="tiny-icon" /> Share Theme
               </button>
             </div>
           </div>
@@ -578,6 +652,11 @@ export default function Home() {
                 <Monitor className="tiny-icon" /> Tab / System
               </button>
             )}
+            {activeInput !== 'keyboard' && (
+              <button className="mini-chip-btn" onClick={handleKeyboardSynthClick}>
+                <Keyboard className="tiny-icon" /> QWERTY / MIDI Piano
+              </button>
+            )}
             {activeInput !== 'file' && (
               <label className="mini-chip-btn" title="Upload local audio file (100% Client-Side Local Processing Only)">
                 <Upload className="tiny-icon" />
@@ -656,13 +735,14 @@ export default function Home() {
           >
             {activeInput === 'mic' && <Mic className="inline-icon" />}
             {activeInput === 'system' && <Monitor className="inline-icon" />}
+            {activeInput === 'keyboard' && <Keyboard className="inline-icon" />}
             {activeInput === 'file' && <Upload className="inline-icon" />}
             {activeInput === 'youtube' && <Video className="inline-icon text-red-400" />}
             {activeInput === 'preset' && <Music className="inline-icon" />}
             <span className="capitalize-text">
               {activeInput === 'file' && uploadedFileName
                 ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
-                : activeInput}
+                : activeInput === 'keyboard' ? 'QWERTY Piano' : activeInput}
             </span>
             <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -678,17 +758,12 @@ export default function Home() {
             <Square className="inline-icon" />
           </button>
 
-          <div className="pill-divider" />
-
-          {/* Combined Sum Overlay Toggle */}
-          <button
-            className={`pill-item-btn ${config.showSummedWave ? 'active' : ''}`}
-            onClick={() => setConfig((prev) => ({ ...prev, showSummedWave: !prev.showSummedWave }))}
-            title="Toggle Summed Waveform Overlay"
-          >
-            <Eye className="inline-icon" />
-            <span>∑ {config.showSummedWave ? 'ON' : 'OFF'}</span>
+          {/* 4K High-Res Snapshot Export Button */}
+          <button className="pill-icon-btn" onClick={handleSnapshotClick} title="Download 4K Canvas Snapshot PNG">
+            <Camera className="inline-icon" />
           </button>
+
+          <div className="pill-divider" />
 
           {/* Slice Controls Drawer Toggle */}
           <button

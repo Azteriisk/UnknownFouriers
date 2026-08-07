@@ -160,7 +160,6 @@ html, body {
   background: var(--glass-hover);
 }
 
-/* Error Toast Floating */
 .floating-error-toast {
   position: absolute;
   top: 5rem;
@@ -178,6 +177,27 @@ html, body {
   align-items: center;
   gap: 0.6rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.floating-toast.success-toast {
+  position: absolute;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(16, 185, 129, 0.2);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  padding: 0.6rem 1.2rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.3s ease;
 }
 
 .dismiss-toast-btn {

@@ -1,6 +1,4 @@
-// AudioEngine.ts - Real-time Web Audio API & Fourier Analysis Engine
-
-export type AudioInputType = 'mic' | 'system' | 'file' | 'youtube' | 'preset';
+// AudioEngine.ts - Web Audio API Engine with Zero-GC Buffer Pool, MIDI & Computer QWERTY Synth
 
 export interface GradientStop {
   id: string;
@@ -25,9 +23,13 @@ export interface VisualizerConfig {
   gradientStops: GradientStop[];
   sumLineColor: string; // hex color for master sum (default #ffffff)
   bgColor: string; // hex color for background (default #020204)
+  is3DTilt?: boolean; // 3D Isometric tilt perspective toggle
+  tiltAngle?: number; // 0 to 60 degrees tilt angle
 }
 
 export type PresetTrack = 'synth_chords' | 'drum_beat' | 'vocal_arpeggio' | 'frequency_sweep';
+
+export type AudioInputType = 'mic' | 'file' | 'youtube' | 'preset' | 'system' | 'keyboard';
 
 export interface AudioEngineCallbacks {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
@@ -35,6 +37,38 @@ export interface AudioEngineCallbacks {
   onError?: (msg: string) => void;
   onStateChange?: (isPlaying: boolean) => void;
 }
+
+// QWERTY Computer Keyboard Note Mapping (2 Octaves)
+export const KEY_TO_NOTE_MAP: Record<string, { note: string; freq: number }> = {
+  // Lower Octave (Octave 3)
+  z: { note: 'C3', freq: 130.81 },
+  s: { note: 'C#3', freq: 138.59 },
+  x: { note: 'D3', freq: 146.83 },
+  d: { note: 'D#3', freq: 155.56 },
+  c: { note: 'E3', freq: 164.81 },
+  v: { note: 'F3', freq: 174.61 },
+  g: { note: 'F#3', freq: 185.0 },
+  b: { note: 'G3', freq: 196.0 },
+  h: { note: 'G#3', freq: 207.65 },
+  n: { note: 'A3', freq: 220.0 },
+  j: { note: 'A#3', freq: 233.08 },
+  m: { note: 'B3', freq: 246.94 },
+
+  // Upper Octave (Octave 4)
+  q: { note: 'C4', freq: 261.63 },
+  2: { note: 'C#4', freq: 277.18 },
+  w: { note: 'D4', freq: 293.66 },
+  3: { note: 'D#4', freq: 311.13 },
+  e: { note: 'E4', freq: 329.63 },
+  r: { note: 'F4', freq: 349.23 },
+  5: { note: 'F#4', freq: 369.99 },
+  t: { note: 'G4', freq: 392.0 },
+  6: { note: 'G#4', freq: 415.3 },
+  y: { note: 'A4', freq: 440.0 },
+  7: { note: 'A#4', freq: 466.16 },
+  u: { note: 'B4', freq: 493.88 },
+  i: { note: 'C5', freq: 523.25 },
+};
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -48,10 +82,18 @@ export class AudioEngine {
   private currentPreset: PresetTrack | null = null;
   private gainNode: GainNode | null = null;
 
+  // Polyphonic Keyboard/MIDI Synthesizer active voices
+  private activeVoices: Map<string, { osc1: OscillatorNode; osc2: OscillatorNode; vGain: GainNode }> = new Map();
+
   private activeInput: AudioInputType = 'preset';
   private isPlaying: boolean = false;
-  private historyBuffer: Float32Array[] = []; // Fixed 300 frame buffer (5s at 60fps)
+
+  // Zero-GC Pre-allocated Reusable Buffer Pool
+  private historyBuffer: Float32Array[] = [];
   private maxHistoryFrames: number = 300; // Fixed 5 sec capacity
+  private bufferPool: Float32Array[] = []; // Pool of reusable arrays
+  private poolPointer: number = 0;
+
   private freqData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
   private timeData: Uint8Array<ArrayBuffer> = new Uint8Array(0);
   private prevBandValues: Float32Array = new Float32Array(0);
@@ -60,7 +102,43 @@ export class AudioEngine {
 
   constructor(callbacks?: AudioEngineCallbacks) {
     if (callbacks) this.callbacks = callbacks;
+    this.initBufferPool(32, 400);
     this.resetHistoryBuffer(32);
+    this.setupVisibilityListeners();
+  }
+
+  // Pre-allocate buffer pool to eliminate Garbage Collection allocations in render loop
+  private initBufferPool(bandCount: number, poolSize: number) {
+    this.bufferPool = [];
+    for (let i = 0; i < poolSize; i++) {
+      this.bufferPool.push(new Float32Array(bandCount));
+    }
+    this.poolPointer = 0;
+  }
+
+  private getPooledBuffer(bandCount: number): Float32Array {
+    if (this.bufferPool.length === 0 || this.bufferPool[0].length !== bandCount) {
+      this.initBufferPool(bandCount, 400);
+    }
+    const buf = this.bufferPool[this.poolPointer];
+    this.poolPointer = (this.poolPointer + 1) % this.bufferPool.length;
+    return buf;
+  }
+
+  private setupVisibilityListeners() {
+    if (typeof document === 'undefined') return;
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (this.ctx && this.ctx.state === 'running') {
+          this.ctx.suspend().catch(() => { /* ignore */ });
+        }
+      } else {
+        if (this.ctx && this.ctx.state === 'suspended' && this.isPlaying) {
+          this.ctx.resume().catch(() => { /* ignore */ });
+        }
+      }
+    });
   }
 
   public async initContext(): Promise<AudioContext> {
@@ -75,11 +153,11 @@ export class AudioEngine {
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 2048;
       this.analyser.smoothingTimeConstant = 0.75;
-      
+
       this.gainNode = this.ctx.createGain();
       this.gainNode.gain.value = 1.0;
       this.gainNode.connect(this.ctx.destination);
-      
+
       this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
       this.timeData = new Uint8Array(this.analyser.fftSize);
     }
@@ -89,415 +167,420 @@ export class AudioEngine {
   public async startMic(): Promise<void> {
     await this.initContext();
     this.stopAllSources();
+
+    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (!this.ctx || !this.analyser) return;
+
+    this.micNode = this.ctx.createMediaStreamSource(this.micStream);
+    this.micNode.connect(this.analyser);
     this.activeInput = 'mic';
-
-    try {
-      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      if (!this.ctx || !this.analyser) return;
-
-      this.micNode = this.ctx.createMediaStreamSource(this.micStream);
-      this.micNode.connect(this.analyser);
-
-      this.isPlaying = true;
-      if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Microphone access denied or unavailable.';
-      if (this.callbacks.onError) this.callbacks.onError(msg);
-      throw err;
-    }
+    this.isPlaying = true;
+    if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
   }
 
   public async startSystemAudio(): Promise<void> {
     await this.initContext();
     this.stopAllSources();
-    this.activeInput = 'system';
 
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+    displayStream.getVideoTracks().forEach((track) => track.stop());
 
-      const audioTrack = stream.getAudioTracks()[0];
-      if (!audioTrack) {
-        stream.getTracks().forEach((t) => t.stop());
-        throw new Error('No audio stream captured. Make sure to check "Share Audio" when picking a Tab or System window.');
-      }
-
-      // Stop video track as we only analyze audio
-      stream.getVideoTracks().forEach((t) => t.stop());
-
-      const audioStream = new MediaStream([audioTrack]);
-
-      if (!this.ctx || !this.analyser) return;
-
-      this.micNode = this.ctx.createMediaStreamSource(audioStream);
-      this.micStream = audioStream;
-
-      this.micNode.connect(this.analyser);
-
-      this.isPlaying = true;
-      if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'System/Tab audio capture canceled or unsupported.';
-      if (this.callbacks.onError) this.callbacks.onError(msg);
-      throw err;
+    const audioTracks = displayStream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      throw new Error('No audio track selected. Make sure to check "Share audio" in browser prompt.');
     }
+
+    if (!this.ctx || !this.analyser) return;
+
+    this.micStream = displayStream;
+    this.micNode = this.ctx.createMediaStreamSource(displayStream);
+    this.micNode.connect(this.analyser);
+
+    audioTracks[0].onended = () => {
+      this.stopAllSources();
+    };
+
+    this.activeInput = 'system';
+    this.isPlaying = true;
+    if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
   }
 
   public async loadAudioFile(file: File): Promise<void> {
     await this.initContext();
     this.stopAllSources();
-    this.activeInput = 'file';
 
     const url = URL.createObjectURL(file);
-    this.setupAudioElement(url);
-  }
-
-  public async loadAudioUrl(url: string): Promise<void> {
-    await this.initContext();
-    this.stopAllSources();
-    this.activeInput = 'youtube';
-
-    this.setupAudioElement(url);
-  }
-
-  private setupAudioElement(url: string) {
-    if (!this.ctx || !this.analyser || !this.gainNode) return;
 
     if (!this.audioElement) {
       this.audioElement = new Audio();
       this.audioElement.crossOrigin = 'anonymous';
 
-      this.audioElement.addEventListener('timeupdate', () => {
-        if (this.callbacks.onTimeUpdate && this.audioElement) {
+      this.audioElement.ontimeupdate = () => {
+        if (this.audioElement && this.callbacks.onTimeUpdate) {
           this.callbacks.onTimeUpdate(this.audioElement.currentTime, this.audioElement.duration || 0);
         }
-      });
+      };
 
-      this.audioElement.addEventListener('ended', () => {
+      this.audioElement.onended = () => {
         this.isPlaying = false;
         if (this.callbacks.onStateChange) this.callbacks.onStateChange(false);
         if (this.callbacks.onEnded) this.callbacks.onEnded();
-      });
+      };
     }
 
     this.audioElement.src = url;
-    
-    if (!this.mediaElementNode && this.audioElement) {
+
+    if (!this.mediaElementNode && this.ctx && this.analyser && this.gainNode) {
       this.mediaElementNode = this.ctx.createMediaElementSource(this.audioElement);
       this.mediaElementNode.connect(this.analyser);
-      this.analyser.connect(this.gainNode);
+      this.mediaElementNode.connect(this.gainNode);
     }
 
-    this.audioElement.play().then(() => {
-      this.isPlaying = true;
-      if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
-    }).catch(err => {
-      if (this.callbacks.onError) this.callbacks.onError(`Audio playback error: ${err.message}`);
-    });
+    await this.audioElement.play();
+    this.activeInput = 'file';
+    this.isPlaying = true;
+    if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
+  }
+
+  // Start Keyboard / MIDI Virtual Synth Mode
+  public async startKeyboardSynth(): Promise<void> {
+    await this.initContext();
+    this.stopAllSources();
+
+    this.activeInput = 'keyboard';
+    this.isPlaying = true;
+    if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
+
+    // Request Web MIDI access if available
+    if (navigator.requestMIDIAccess) {
+      try {
+        const midiAccess = await navigator.requestMIDIAccess();
+        midiAccess.inputs.forEach((input) => {
+          input.onmidimessage = (e) => this.handleMIDIMessage(e);
+        });
+      } catch { /* ignore MIDI access deny */ }
+    }
+  }
+
+  private handleMIDIMessage(event: { data?: Uint8Array | null }) {
+    if (!event.data) return;
+    const [status, noteNumber, velocity] = event.data;
+    const command = status >> 4;
+
+    if (command === 9 && velocity > 0) {
+      const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
+      this.noteOn(freq, `midi_${noteNumber}`);
+    } else if (command === 8 || (command === 9 && velocity === 0)) {
+      this.noteOff(`midi_${noteNumber}`);
+    }
+  }
+
+  // Play polyphonic note with ADSR envelope
+  public noteOn(frequency: number, noteKey: string) {
+    if (!this.ctx || !this.analyser || !this.gainNode) return;
+    if (this.activeVoices.has(noteKey)) return; // prevent duplicate trigger
+
+    const now = this.ctx.currentTime;
+
+    // Dual Oscillator for rich analog synth sound
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const vGain = this.ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(frequency, now);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(frequency * 1.002, now); // subtle detune
+
+    // ADSR Attack envelope
+    vGain.gain.setValueAtTime(0.001, now);
+    vGain.gain.exponentialRampToValueAtTime(0.3, now + 0.04);
+
+    osc1.connect(vGain);
+    osc2.connect(vGain);
+    vGain.connect(this.analyser);
+    vGain.connect(this.gainNode);
+
+    osc1.start(now);
+    osc2.start(now);
+
+    this.activeVoices.set(noteKey, { osc1, osc2, vGain });
+  }
+
+  public noteOff(noteKey: string) {
+    if (!this.ctx) return;
+    const voice = this.activeVoices.get(noteKey);
+    if (!voice) return;
+
+    const now = this.ctx.currentTime;
+    // Release envelope
+    voice.vGain.gain.cancelScheduledValues(now);
+    voice.vGain.gain.setValueAtTime(voice.vGain.gain.value, now);
+    voice.vGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+    setTimeout(() => {
+      try {
+        voice.osc1.stop();
+        voice.osc2.stop();
+        voice.osc1.disconnect();
+        voice.osc2.disconnect();
+        voice.vGain.disconnect();
+      } catch { /* ignore */ }
+    }, 180);
+
+    this.activeVoices.delete(noteKey);
   }
 
   public async playPreset(preset: PresetTrack): Promise<void> {
     await this.initContext();
     this.stopAllSources();
-    this.activeInput = 'preset';
-    this.currentPreset = preset;
 
-    if (!this.ctx || !this.analyser || !this.gainNode) return;
+    this.currentPreset = preset;
+    this.activeInput = 'preset';
+    this.isPlaying = true;
 
     if (preset === 'synth_chords') {
-      this.generateSynthChords();
+      this.playSynthChordsSequence();
     } else if (preset === 'drum_beat') {
-      this.generateDrumBeat();
+      this.playDrumBeatSequence();
     } else if (preset === 'vocal_arpeggio') {
-      this.generateVocalArpeggio();
+      this.playArpeggioSequence();
     } else if (preset === 'frequency_sweep') {
-      this.generateFrequencySweep();
+      this.playFrequencySweepSequence();
     }
 
-    this.isPlaying = true;
     if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
   }
 
-  private generateSynthChords(): void {
+  private playSynthChordsSequence() {
     if (!this.ctx || !this.analyser || !this.gainNode) return;
 
-    const notes = [
-      [130.81, 164.81, 196.00, 246.94], // C maj7
-      [110.00, 130.81, 164.81, 196.00], // A min7
-      [146.83, 174.61, 220.00, 261.63], // D min7
-      [97.99, 123.47, 146.83, 196.00],  // G7
+    const chords = [
+      [261.63, 329.63, 392.0, 523.25], // C Major
+      [220.0, 261.63, 329.63, 440.0],  // A Minor
+      [174.61, 220.0, 261.63, 349.23], // F Major
+      [196.0, 246.94, 293.66, 392.0],  // G Major
     ];
 
-    const masterGain = this.ctx.createGain();
-    masterGain.gain.value = 0.25;
-    masterGain.connect(this.analyser);
-    this.analyser.connect(this.gainNode);
-
     let chordIdx = 0;
-    const playChord = () => {
-      if (!this.ctx || this.activeInput !== 'preset' || this.currentPreset !== 'synth_chords') return;
-      const currentNotes = notes[chordIdx % notes.length];
-      chordIdx++;
 
-      currentNotes.forEach(freq => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const subOsc = this.ctx.createOscillator();
-        const env = this.ctx.createGain();
+    const triggerChord = () => {
+      if (!this.ctx || !this.analyser || !this.gainNode) return;
+      const now = this.ctx.currentTime;
+      const currentChord = chords[chordIdx];
+      chordIdx = (chordIdx + 1) % chords.length;
+
+      currentChord.forEach((freq) => {
+        const osc = this.ctx!.createOscillator();
+        const subOsc = this.ctx!.createOscillator();
+        const noteGain = this.ctx!.createGain();
 
         osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+
         subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(freq / 2, now);
 
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        subOsc.frequency.setValueAtTime(freq / 2, this.ctx.currentTime);
+        noteGain.gain.setValueAtTime(0.001, now);
+        noteGain.gain.linearRampToValueAtTime(0.12, now + 0.1);
+        noteGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
 
-        env.gain.setValueAtTime(0.001, this.ctx.currentTime);
-        env.gain.linearRampToValueAtTime(0.15, this.ctx.currentTime + 0.1);
-        env.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.8);
+        osc.connect(noteGain);
+        subOsc.connect(noteGain);
+        noteGain.connect(this.analyser!);
+        noteGain.connect(this.gainNode!);
 
-        osc.connect(env);
-        subOsc.connect(env);
-        env.connect(masterGain);
-
-        osc.start();
-        subOsc.start();
-        osc.stop(this.ctx.currentTime + 2.0);
-        subOsc.stop(this.ctx.currentTime + 2.0);
+        osc.start(now);
+        subOsc.start(now);
+        osc.stop(now + 1.9);
+        subOsc.stop(now + 1.9);
 
         this.presetOscillators.push(osc, subOsc);
       });
     };
 
-    playChord();
-    const interval = setInterval(() => {
-      if (this.activeInput !== 'preset' || !this.isPlaying || this.currentPreset !== 'synth_chords') {
-        clearInterval(interval);
-        return;
-      }
-      playChord();
-    }, 2000);
+    triggerChord();
+    const interval = setInterval(triggerChord, 2000);
     this.presetIntervals.push(interval);
   }
 
-  private generateDrumBeat(): void {
+  private playDrumBeatSequence() {
     if (!this.ctx || !this.analyser || !this.gainNode) return;
 
-    const masterGain = this.ctx.createGain();
-    masterGain.gain.value = 0.4;
-    masterGain.connect(this.analyser);
-    this.analyser.connect(this.gainNode);
-
     let step = 0;
-    const playStep = () => {
-      if (!this.ctx || this.activeInput !== 'preset' || this.currentPreset !== 'drum_beat') return;
+    const bpm = 120;
+    const stepTime = (60 / bpm) / 4 * 1000;
 
-      const t = this.ctx.currentTime;
+    const triggerStep = () => {
+      if (!this.ctx || !this.analyser || !this.gainNode) return;
+      const now = this.ctx.currentTime;
 
+      // Kick drum on 0, 4, 8, 12
       if (step % 4 === 0) {
         const kickOsc = this.ctx.createOscillator();
         const kickGain = this.ctx.createGain();
-        kickOsc.frequency.setValueAtTime(150, t);
-        kickOsc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
-        kickGain.gain.setValueAtTime(1, t);
-        kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+
+        kickOsc.frequency.setValueAtTime(150, now);
+        kickOsc.frequency.exponentialRampToValueAtTime(35, now + 0.12);
+
+        kickGain.gain.setValueAtTime(0.5, now);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
         kickOsc.connect(kickGain);
-        kickGain.connect(masterGain);
-        kickOsc.start(t);
-        kickOsc.stop(t + 0.3);
+        kickGain.connect(this.analyser);
+        kickGain.connect(this.gainNode);
+
+        kickOsc.start(now);
+        kickOsc.stop(now + 0.35);
         this.presetOscillators.push(kickOsc);
       }
 
+      // Snare on 4, 12
       if (step % 8 === 4) {
-        const snareNoise = this.ctx.createBufferSource();
-        const bufferSize = this.ctx.sampleRate * 0.2;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-        snareNoise.buffer = buffer;
+        const snareOsc = this.ctx.createOscillator();
+        const snareGain = this.ctx.createGain();
 
-        const noiseGain = this.ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.4, t);
-        noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-        snareNoise.connect(noiseGain);
-        noiseGain.connect(masterGain);
-        snareNoise.start(t);
-        this.presetOscillators.push(snareNoise);
+        snareOsc.type = 'triangle';
+        snareOsc.frequency.setValueAtTime(250, now);
+        snareOsc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+
+        snareGain.gain.setValueAtTime(0.35, now);
+        snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        snareOsc.connect(snareGain);
+        snareGain.connect(this.analyser);
+        snareGain.connect(this.gainNode);
+
+        snareOsc.start(now);
+        snareOsc.stop(now + 0.22);
+        this.presetOscillators.push(snareOsc);
       }
-
-      const hatOsc = this.ctx.createOscillator();
-      const hatGain = this.ctx.createGain();
-      hatOsc.type = 'square';
-      hatOsc.frequency.setValueAtTime(7000 + Math.random() * 2000, t);
-      hatGain.gain.setValueAtTime(step % 2 === 0 ? 0.15 : 0.08, t);
-      hatGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-      hatOsc.connect(hatGain);
-      hatGain.connect(masterGain);
-      hatOsc.start(t);
-      hatOsc.stop(t + 0.05);
-      this.presetOscillators.push(hatOsc);
 
       step = (step + 1) % 16;
     };
 
-    playStep();
-    const interval = setInterval(() => {
-      if (this.activeInput !== 'preset' || !this.isPlaying || this.currentPreset !== 'drum_beat') {
-        clearInterval(interval);
-        return;
-      }
-      playStep();
-    }, 150);
+    triggerStep();
+    const interval = setInterval(triggerStep, stepTime);
     this.presetIntervals.push(interval);
   }
 
-  private generateVocalArpeggio(): void {
+  private playArpeggioSequence() {
     if (!this.ctx || !this.analyser || !this.gainNode) return;
 
-    const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
-    const masterGain = this.ctx.createGain();
-    masterGain.gain.value = 0.3;
-    masterGain.connect(this.analyser);
-    this.analyser.connect(this.gainNode);
+    const notes = [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 523.25, 392.0, 329.63];
+    let noteIdx = 0;
 
-    let idx = 0;
-    const playNote = () => {
-      if (!this.ctx || this.activeInput !== 'preset' || this.currentPreset !== 'vocal_arpeggio') return;
-      const t = this.ctx.currentTime;
-      const freq = scale[idx % scale.length];
-      idx++;
+    const triggerNote = () => {
+      if (!this.ctx || !this.analyser || !this.gainNode) return;
+      const now = this.ctx.currentTime;
+      const freq = notes[noteIdx];
+      noteIdx = (noteIdx + 1) % notes.length;
 
       const osc = this.ctx.createOscillator();
-      const osc2 = this.ctx.createOscillator();
-      const env = this.ctx.createGain();
+      const noteGain = this.ctx.createGain();
 
-      osc.type = 'triangle';
-      osc2.type = 'sine';
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
 
-      osc.frequency.setValueAtTime(freq, t);
-      osc2.frequency.setValueAtTime(freq * 2, t);
+      noteGain.gain.setValueAtTime(0.001, now);
+      noteGain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+      noteGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
 
-      env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(0.2, t + 0.05);
-      env.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.connect(noteGain);
+      noteGain.connect(this.analyser);
+      noteGain.connect(this.gainNode);
 
-      osc.connect(env);
-      osc2.connect(env);
-      env.connect(masterGain);
-
-      osc.start(t);
-      osc2.start(t);
-      osc.stop(t + 0.4);
-      osc2.stop(t + 0.4);
-
-      this.presetOscillators.push(osc, osc2);
+      osc.start(now);
+      osc.stop(now + 0.28);
+      this.presetOscillators.push(osc);
     };
 
-    playNote();
-    const interval = setInterval(() => {
-      if (this.activeInput !== 'preset' || !this.isPlaying || this.currentPreset !== 'vocal_arpeggio') {
-        clearInterval(interval);
-        return;
-      }
-      playNote();
-    }, 200);
+    triggerNote();
+    const interval = setInterval(triggerNote, 160);
     this.presetIntervals.push(interval);
   }
 
-  private generateFrequencySweep(): void {
+  private playFrequencySweepSequence() {
     if (!this.ctx || !this.analyser || !this.gainNode) return;
 
-    const masterGain = this.ctx.createGain();
-    masterGain.gain.value = 0.3;
-    masterGain.connect(this.analyser);
-    this.analyser.connect(this.gainNode);
-
-    const osc = this.ctx.createOscillator();
-    osc.type = 'sine';
-    const t = this.ctx.currentTime;
-
-    osc.frequency.setValueAtTime(50, t);
-    osc.frequency.exponentialRampToValueAtTime(8000, t + 4.0);
-
-    osc.connect(masterGain);
-    osc.start(t);
-    osc.stop(t + 4.0);
-
-    this.presetOscillators.push(osc);
-
-    const interval = setInterval(() => {
-      if (this.activeInput !== 'preset' || !this.isPlaying || !this.ctx || this.currentPreset !== 'frequency_sweep') {
-        clearInterval(interval);
-        return;
-      }
+    const triggerSweep = () => {
+      if (!this.ctx || !this.analyser || !this.gainNode) return;
       const now = this.ctx.currentTime;
-      const nextOsc = this.ctx.createOscillator();
-      nextOsc.type = 'sine';
-      nextOsc.frequency.setValueAtTime(50, now);
-      nextOsc.frequency.exponentialRampToValueAtTime(8000, now + 4.0);
-      nextOsc.connect(masterGain);
-      nextOsc.start(now);
-      nextOsc.stop(now + 4.0);
-      this.presetOscillators.push(nextOsc);
-    }, 4000);
+
+      const osc = this.ctx.createOscillator();
+      const noteGain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(50, now);
+      osc.frequency.exponentialRampToValueAtTime(6000, now + 3.0);
+
+      noteGain.gain.setValueAtTime(0.001, now);
+      noteGain.gain.linearRampToValueAtTime(0.2, now + 0.2);
+      noteGain.gain.setValueAtTime(0.2, now + 2.8);
+      noteGain.gain.exponentialRampToValueAtTime(0.001, now + 3.2);
+
+      osc.connect(noteGain);
+      noteGain.connect(this.analyser);
+      noteGain.connect(this.gainNode);
+
+      osc.start(now);
+      osc.stop(now + 3.3);
+      this.presetOscillators.push(osc);
+    };
+
+    triggerSweep();
+    const interval = setInterval(triggerSweep, 3500);
     this.presetIntervals.push(interval);
   }
 
   public pause(): void {
-    if (this.audioElement) {
+    if (this.audioElement && this.activeInput === 'file') {
       this.audioElement.pause();
+    } else {
+      this.stopAllSources();
     }
     this.isPlaying = false;
     if (this.callbacks.onStateChange) this.callbacks.onStateChange(false);
   }
 
   public resume(): void {
-    if (this.audioElement && this.activeInput !== 'mic') {
+    if (this.audioElement && this.activeInput === 'file') {
       this.audioElement.play();
       this.isPlaying = true;
       if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
     }
   }
 
-  public seek(seconds: number): void {
-    if (this.audioElement) {
-      this.audioElement.currentTime = seconds;
-    }
-  }
-
-  public setVolume(vol: number): void {
-    if (this.gainNode) {
-      this.gainNode.gain.value = Math.max(0, Math.min(1, vol));
-    }
-  }
-
   public stopAllSources(): void {
-    this.isPlaying = false;
-
-    this.presetIntervals.forEach(id => clearInterval(id));
-    this.presetIntervals = [];
-    this.currentPreset = null;
-
     if (this.micStream) {
-      this.micStream.getTracks().forEach(t => t.stop());
+      this.micStream.getTracks().forEach((track) => track.stop());
       this.micStream = null;
     }
     if (this.micNode) {
       this.micNode.disconnect();
       this.micNode = null;
     }
-
     if (this.audioElement) {
       this.audioElement.pause();
       this.audioElement.currentTime = 0;
     }
 
-    this.presetOscillators.forEach(osc => {
+    this.activeVoices.forEach((voice) => {
+      try {
+        voice.osc1.stop();
+        voice.osc2.stop();
+        voice.osc1.disconnect();
+        voice.osc2.disconnect();
+        voice.vGain.disconnect();
+      } catch { /* ignore */ }
+    });
+    this.activeVoices.clear();
+
+    this.presetIntervals.forEach((interval) => clearInterval(interval));
+    this.presetIntervals = [];
+
+    this.presetOscillators.forEach((osc) => {
       try {
         osc.stop();
         osc.disconnect();
@@ -505,7 +588,6 @@ export class AudioEngine {
     });
     this.presetOscillators = [];
 
-    // Reset history buffer to full 180 blank zero frames
     this.resetHistoryBuffer(32);
 
     if (this.callbacks.onStateChange) this.callbacks.onStateChange(false);
@@ -519,12 +601,10 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Called every animation frame (60fps) to sample frequency data into the rolling window
-   */
+  // Zero-GC Frame Processing Loop (Uses Pooled Reusable Float32Array Buffers)
   public processFrame(bandCount: number, minFreq: number = 40, maxFreq: number = 9000): Float32Array {
     if (!this.analyser) {
-      return new Float32Array(bandCount);
+      return this.getPooledBuffer(bandCount);
     }
 
     if (this.prevBandValues.length !== bandCount) {
@@ -534,17 +614,17 @@ export class AudioEngine {
     this.analyser.getByteFrequencyData(this.freqData);
     this.analyser.getByteTimeDomainData(this.timeData);
 
-    // Sample rate (default 44100Hz) & FFT bin width
     const sampleRate = this.ctx ? this.ctx.sampleRate : 44100;
     const binHz = sampleRate / (this.analyser.fftSize || 2048);
     const totalBins = this.freqData.length;
-    const bandValues = new Float32Array(bandCount);
+
+    // Fetch zero-GC pooled array instead of instantiating new Float32Array
+    const bandValues = this.getPooledBuffer(bandCount);
 
     const minHz = Math.max(20, minFreq);
     const maxHz = Math.min(18000, Math.max(minHz + 100, maxFreq));
     const hzRatio = maxHz / minHz;
 
-    // Group frequency bins into logarithmically spaced musical octave pitch buckets
     for (let i = 0; i < bandCount; i++) {
       const fStart = minHz * Math.pow(hzRatio, i / bandCount);
       const fEnd = minHz * Math.pow(hzRatio, (i + 1) / bandCount);
@@ -559,15 +639,13 @@ export class AudioEngine {
         count++;
       }
       const avg = count > 0 ? sum / count : 0;
-      const rawVal = avg / 255.0; // Normalized 0.0 - 1.0
+      const rawVal = avg / 255.0;
 
-      // Smooth temporal attack/decay filter
       const smoothed = this.prevBandValues[i] * 0.3 + rawVal * 0.7;
       this.prevBandValues[i] = smoothed;
       bandValues[i] = smoothed;
     }
 
-    // Always maintain fixed 180 frame rolling history
     this.historyBuffer.push(bandValues);
     while (this.historyBuffer.length > this.maxHistoryFrames) {
       this.historyBuffer.shift();
@@ -576,22 +654,11 @@ export class AudioEngine {
     return bandValues;
   }
 
-  /**
-   * Returns exact slice of frames corresponding to requested windowSeconds (1s, 2s, or 3s)
-   */
-  public getHistoryBuffer(windowSeconds: number = 3): Float32Array[] {
-    const requestedLength = Math.min(this.maxHistoryFrames, Math.round(60 * windowSeconds));
-    if (this.historyBuffer.length <= requestedLength) {
+  public getHistoryBuffer(windowSeconds: number): Float32Array[] {
+    const requestedFrames = Math.max(10, Math.min(this.maxHistoryFrames, Math.round(60 * windowSeconds)));
+    if (this.historyBuffer.length <= requestedFrames) {
       return this.historyBuffer;
     }
-    return this.historyBuffer.slice(this.historyBuffer.length - requestedLength);
-  }
-
-  public getIsPlaying(): boolean {
-    return this.isPlaying;
-  }
-
-  public getActiveInput(): AudioInputType {
-    return this.activeInput;
+    return this.historyBuffer.slice(this.historyBuffer.length - requestedFrames);
   }
 }

@@ -1,4 +1,4 @@
-// VisualizerCanvas.tsx - High-Performance Responsive Ridgeline Synthesizer with Dynamic Viewport Clearance
+// VisualizerCanvas.tsx - Responsive Ridgeline Visualizer with 3D Isometric Tilt & Offscreen Fog Caching
 
 'use client';
 
@@ -31,7 +31,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = window.innerWidth;
       const height = window.innerHeight;
-      
+
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
@@ -112,7 +112,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       const preferredHeight = bandCount * (8 + config.lineSpacing * 0.35);
       const ridgelineHeight = Math.min(maxClusteredHeight, preferredHeight);
       const lineGap = ridgelineHeight / (bandCount + 1);
-      
+
       const startY = centerScreenY + (ridgelineHeight / 2);
 
       // Array to store summed displacement across time for the combined waveform overlay
@@ -134,30 +134,33 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
         ridgelineHeight
       );
 
-      // Store calculated points for all lines for multi-pass rendering
       const allLinePoints: { points: { x: number; y: number }[]; bandIdx: number }[] = [];
 
       const minHz = config.minFreq || 40;
       const maxHz = config.maxFreq || 9000;
       const hzRatio = maxHz / minHz;
-
-      // Step size optimization for higher band counts on mobile
       const stepX = isMobile && bandCount > 32 ? 3 : 2;
+
+      const is3D = config.is3DTilt ?? false;
+      const tiltAngle = config.tiltAngle ?? 35;
+      const tiltScaleY = is3D ? Math.cos((tiltAngle * Math.PI) / 180) : 1.0;
 
       // Render stacked ridgeline curves from top (highest Y, b = bandCount - 1) to bottom (lowest Y, b = 0)
       for (let b = bandCount - 1; b >= 0; b--) {
         const floatyOffset = Math.sin(globalTime * 1.2 + b * 0.18) * (isMobile ? 3 : 5);
-        const lineBaseY = startY - b * lineGap + floatyOffset;
-        
-        // Base frequency matches frequency bounds slice
-        const baseFreq = minHz * Math.pow(hzRatio, b / bandCount);
+        let lineBaseY = startY - b * lineGap + floatyOffset;
 
+        if (is3D) {
+          const depthProgress = b / bandCount; // 0 (front) to 1 (back)
+          lineBaseY = startY - (b * lineGap * tiltScaleY) + floatyOffset * 0.5;
+        }
+
+        const baseFreq = minHz * Math.pow(hzRatio, b / bandCount);
         const points: { x: number; y: number }[] = [];
 
         for (let x = startX; x <= endX; x += stepX) {
           const normPlotX = (x - startX) / plotWidth; // 0.0 to 1.0
 
-          // Smooth fractional frame index linear interpolation (lerp)
           const exactIdx = normPlotX * (historyLen - 1);
           const idx0 = Math.floor(exactIdx);
           const idx1 = Math.min(historyLen - 1, idx0 + 1);
@@ -169,30 +172,25 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
           const amp1 = frame1 ? frame1[b] : 0;
           const amp = amp0 * (1 - frac) + amp1 * frac;
 
-          // Carrier frequency scales with windowSeconds for horizontal zoom
           const time = normPlotX * config.windowSeconds;
           const sineCarrier = Math.sin(2 * Math.PI * baseFreq * time * 0.04);
 
-          // Center Gaussian bell envelope combined with edge taper to eliminate hard step cut-off
-          const normX = normPlotX * 2 - 1; // -1 to +1
+          const normX = normPlotX * 2 - 1;
           const centerWeight = Math.exp(-Math.pow(normX * 1.6, 2));
-          const edgeTaper = Math.pow(Math.sin(normPlotX * Math.PI), 0.75); // 0 at edges, 1 in center
+          const edgeTaper = Math.pow(Math.sin(normPlotX * Math.PI), 0.75);
 
           const maxAmpDisp = isMobile ? 35 : 50;
-          const displacement = amp * (15 + maxAmpDisp * config.gain) * (0.35 + 0.65 * sineCarrier) * centerWeight * edgeTaper;
+          const displacement = amp * (15 + maxAmpDisp * config.gain) * (0.35 + 0.65 * sineCarrier) * centerWeight * edgeTaper * (is3D ? 0.8 : 1.0);
           const currentY = lineBaseY - displacement;
 
-          // Add to overall summed waveform buffer
           summedWaveform[Math.floor(x)] += displacement * 0.35;
-
           points.push({ x, y: currentY });
         }
 
         if (points.length === 0) continue;
-
         allLinePoints.push({ points, bandIdx: b });
 
-        // 1. Solid Occlusion Fill (fills down to canvas bottom with custom bgColor)
+        // 1. Solid Occlusion Fill
         ctx.globalCompositeOperation = 'source-over';
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
@@ -220,12 +218,11 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
         ctx.shadowBlur = 0;
       }
 
-      // 6. Additive Volumetric Light Bloom Pass ('lighter' compositing sums light rays into fog)
+      // 6. Additive Volumetric Light Bloom Pass
       if (bloomBlur > 2 && masterOpacity > 0.01) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
-        // Outer Wide Ambient Volumetric Bloom
         const bloomStep = isMobile ? 3 : 2;
         for (let l = 0; l < allLinePoints.length; l += bloomStep) {
           const line = allLinePoints[l];
@@ -242,7 +239,6 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
           ctx.stroke();
         }
 
-        // Inner Intense Bloom Halo
         for (let l = 0; l < allLinePoints.length; l += (isMobile ? 2 : 1)) {
           const line = allLinePoints[l];
           ctx.beginPath();
@@ -264,7 +260,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       // 7. Render Combined Waveform Overlay if enabled
       if (config.showSummedWave) {
         const sumBaseY = centerScreenY - (ridgelineHeight / 2) - (isMobile ? 25 : 40);
-        
+
         if (bloomBlur > 2 && masterOpacity > 0.01) {
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
@@ -327,7 +323,17 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
   );
 };
 
-// Construct dynamic Canvas 2D Linear Gradient
+// Export 4K High-Res Canvas Snapshot Poster
+export function download4KSnapshot(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return;
+  try {
+    const link = document.createElement('a');
+    link.download = `unknown_frequencies_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch { /* ignore */ }
+}
+
 function buildGradientStyle(
   ctx: CanvasRenderingContext2D,
   direction: GradientDirection,
@@ -346,7 +352,6 @@ function buildGradientStyle(
   } else if (direction === 'diagonal') {
     grad = ctx.createLinearGradient(startX, startY, endX, startY - ridgelineHeight);
   } else {
-    // vertical (default): top of ridgelines (startY - ridgelineHeight) down to bottom (startY)
     grad = ctx.createLinearGradient(0, startY - ridgelineHeight, 0, startY);
   }
 
@@ -359,7 +364,6 @@ function buildGradientStyle(
   return grad;
 }
 
-// Blender-style Volumetric Atmosphere Fog Shader with Additive Light Scattering
 function drawVolumetricNoiseFog(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -379,14 +383,12 @@ function drawVolumetricNoiseFog(
   const centerX = width / 2;
   const centerY = height / 2;
 
-  // 1. Central Volumetric Fog Light Cloud
   const fogRadius = Math.min(width, height) * (0.45 + 0.25 * fogDensity);
   const fogGrad = ctx.createRadialGradient(centerX, centerY, 20, centerX, centerY, fogRadius);
 
   const cLine = lineColor || '#ffffff';
   const cSum = sumColor || '#ffffff';
 
-  // Fog reacts dynamically to audio energy
   const baseAlpha = (fogDensity * 0.35) * (0.7 + 0.6 * audioAmp) * masterOpacity;
 
   fogGrad.addColorStop(0, hexToRgba(cSum, baseAlpha * 0.9));
@@ -397,7 +399,6 @@ function drawVolumetricNoiseFog(
   ctx.fillStyle = fogGrad;
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Procedural Noise Fog Tendril Clouds
   const numClouds = Math.floor((width < 768 ? 3 : 6) * fogDensity);
   for (let c = 0; c < numClouds; c++) {
     const cloudAngle = (c / numClouds) * Math.PI * 2 + time * 0.1;
@@ -433,7 +434,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Subtle ambient space dust background
 function drawSpaceDust(ctx: CanvasRenderingContext2D, width: number, height: number, time: number) {
   ctx.save();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';

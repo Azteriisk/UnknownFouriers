@@ -1,4 +1,4 @@
-// VisualizerCanvas.tsx - High-Performance 60 FPS Ridgeline Visualizer with True 3D Perspective & Offscreen Fog Caching
+// VisualizerCanvas.tsx - High-Performance 60 FPS Ridgeline Visualizer with Pre-computed LUTs & Offscreen Fog Caching
 
 'use client';
 
@@ -11,6 +11,35 @@ interface VisualizerCanvasProps {
   bottomReservedHeight?: number;
 }
 
+// Pre-computed spatial envelope lookup table (LUT) to eliminate Math.exp and Math.pow per point
+const LUT_SIZE = 1000;
+const SPATIAL_ENVELOPE_LUT = new Float32Array(LUT_SIZE);
+
+for (let i = 0; i < LUT_SIZE; i++) {
+  const normPlotX = i / (LUT_SIZE - 1);
+  const normX = normPlotX * 2 - 1;
+  const centerWeight = Math.exp(-Math.pow(normX * 1.6, 2));
+  const edgeTaper = Math.pow(Math.sin(normPlotX * Math.PI), 0.75);
+  SPATIAL_ENVELOPE_LUT[i] = centerWeight * edgeTaper;
+}
+
+// Pre-computed static star list to eliminate Math.sin/Math.cos calls per frame in space dust
+interface StarParticle {
+  xNorm: number;
+  yNorm: number;
+  phase: number;
+  size: number;
+}
+const STAR_LIST: StarParticle[] = [];
+for (let i = 0; i < 40; i++) {
+  STAR_LIST.push({
+    xNorm: (Math.sin(i * 99) * 0.5 + 0.5),
+    yNorm: (Math.cos(i * 33) * 0.5 + 0.5),
+    phase: i * 12,
+    size: (i % 3 === 0 ? 1.5 : 1),
+  });
+}
+
 export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
   engine,
   config,
@@ -19,6 +48,12 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameId = useRef<number | null>(null);
+
+  // Persistent reusable buffers to eliminate Garbage Collection allocations
+  const summedWaveformRef = useRef<Float32Array>(new Float32Array(3840));
+
+  // Cached Gradient reference
+  const cachedGradientRef = useRef<{ style: CanvasGradient | string; key: string } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,6 +80,10 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.scale(dpr, dpr);
+
+      if (summedWaveformRef.current.length < width) {
+        summedWaveformRef.current = new Float32Array(width);
+      }
     };
 
     resizeCanvas();
@@ -106,7 +145,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
         ctx.restore();
       }
 
-      // Draw subtle space star/particle dust
+      // Draw subtle space star/particle dust (using pre-generated star list)
       drawSpaceDust(ctx, width, height, globalTime);
 
       if (historyLen < 2) {
@@ -131,23 +170,31 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
 
       const startY = centerScreenY + (ridgelineHeight / 2);
 
-      // Array to store summed displacement across time for the combined waveform overlay
-      const summedWaveform = new Float32Array(width);
+      // Re-use pre-allocated buffer instead of instantiating new Float32Array every frame
+      const summedWaveform = summedWaveformRef.current;
+      summedWaveform.fill(0);
 
       // Responsive base plot width
       const basePlotWidth = Math.min(width * (isMobile ? 0.92 : 0.75), 950);
       const startX = (width - basePlotWidth) / 2;
 
-      // Construct dynamic multi-stop gradient stroke style
-      const lineStrokeStyle = buildGradientStyle(
-        ctx,
-        config.gradientDirection || 'vertical',
-        config.gradientStops || [{ id: '1', color: '#ffffff', offset: 0 }],
-        startX,
-        startX + basePlotWidth,
-        startY,
-        ridgelineHeight
-      );
+      // Construct or fetch cached gradient stroke style
+      const gradKey = `${config.gradientDirection}_${config.gradientStops.map(s => s.color + s.offset).join('_')}_${Math.round(startX)}_${Math.round(basePlotWidth)}_${Math.round(startY)}_${Math.round(ridgelineHeight)}`;
+      if (!cachedGradientRef.current || cachedGradientRef.current.key !== gradKey) {
+        cachedGradientRef.current = {
+          style: buildGradientStyle(
+            ctx,
+            config.gradientDirection || 'vertical',
+            config.gradientStops || [{ id: '1', color: '#ffffff', offset: 0 }],
+            startX,
+            startX + basePlotWidth,
+            startY,
+            ridgelineHeight
+          ),
+          key: gradKey,
+        };
+      }
+      const lineStrokeStyle = cachedGradientRef.current.style;
 
       const minHz = config.minFreq || 40;
       const maxHz = config.maxFreq || 9000;
@@ -187,8 +234,9 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
         const fillPath = new Path2D();
 
         let firstPoint = true;
+        const stepInc = stepX * (is3D ? scaleZ : 1.0);
 
-        for (let x = lineStartX; x <= lineEndX; x += stepX * (is3D ? scaleZ : 1.0)) {
+        for (let x = lineStartX; x <= lineEndX; x += stepInc) {
           const normPlotX = (x - lineStartX) / linePlotWidth; // 0.0 to 1.0
           const timeProgress = config.reverseTimeFlow ? (1.0 - normPlotX) : normPlotX;
 
@@ -206,12 +254,12 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
           const time = normPlotX * config.windowSeconds;
           const sineCarrier = Math.sin(2 * Math.PI * baseFreq * time * 0.04);
 
-          const normX = normPlotX * 2 - 1;
-          const centerWeight = Math.exp(-Math.pow(normX * 1.6, 2));
-          const edgeTaper = Math.pow(Math.sin(normPlotX * Math.PI), 0.75);
+          // Fast O(1) Lookup Table lookup replacing Math.exp and Math.pow per point
+          const lutIdx = Math.min(LUT_SIZE - 1, Math.max(0, Math.floor(normPlotX * (LUT_SIZE - 1))));
+          const spatialWeight = SPATIAL_ENVELOPE_LUT[lutIdx];
 
           const maxAmpDisp = isMobile ? 35 : 50;
-          const displacement = amp * (15 + maxAmpDisp * config.gain) * (0.35 + 0.65 * sineCarrier) * centerWeight * edgeTaper * (is3D ? scaleZ * 1.1 : 1.0);
+          const displacement = amp * (15 + maxAmpDisp * config.gain) * (0.35 + 0.65 * sineCarrier) * spatialWeight * (is3D ? scaleZ * 1.1 : 1.0);
           const currentY = lineBaseY - displacement;
 
           const screenXIndex = Math.min(width - 1, Math.max(0, Math.floor(x)));
@@ -269,13 +317,12 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
 
       // 6. Render Combined Waveform Overlay if enabled
       if (config.showSummedWave) {
-        // Shift sum base line down slightly below header to guarantee 100% zero top window clipping
         const sumBaseY = centerScreenY - (ridgelineHeight / 2) + (isMobile ? 10 : 20);
         const sumPath = new Path2D();
         let firstA = true;
 
         for (let x = startX; x <= startX + basePlotWidth; x += stepX) {
-          const totalDisp = summedWaveform[Math.floor(x)] * 0.72; // Scaled peak height
+          const totalDisp = summedWaveform[Math.floor(x)] * 0.72;
           const y = Math.max(headerHeight + 20, sumBaseY - totalDisp);
           if (firstA) {
             sumPath.moveTo(x, y);
@@ -438,13 +485,14 @@ function drawSpaceDust(ctx: CanvasRenderingContext2D, width: number, height: num
   ctx.save();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
   const numStars = width < 768 ? 15 : 30;
-  for (let i = 0; i < numStars; i++) {
-    const starX = (Math.sin(i * 99 + time * 0.02) * 0.5 + 0.5) * width;
-    const starY = (Math.cos(i * 33 + time * 0.03) * 0.5 + 0.5) * height;
-    const alpha = (Math.sin(i * 12 + time * 1.5) * 0.5 + 0.5) * 0.35;
+  for (let i = 0; i < numStars && i < STAR_LIST.length; i++) {
+    const star = STAR_LIST[i];
+    const starX = star.xNorm * width;
+    const starY = star.yNorm * height;
+    const alpha = (Math.sin(star.phase + time * 1.5) * 0.5 + 0.5) * 0.35;
     ctx.globalAlpha = alpha;
     ctx.beginPath();
-    ctx.arc(starX, starY, (i % 3 === 0 ? 1.5 : 1), 0, Math.PI * 2);
+    ctx.arc(starX, starY, star.size, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -509,10 +557,10 @@ function drawFloatingStandbyPattern(
 
     for (let x = lineStartX; x <= lineEndX; x += (isMobile ? 14 : 10) * (is3D ? scaleZ : 1.0)) {
       const normPlotX = (x - lineStartX) / linePlotWidth;
-      const normX = normPlotX * 2 - 1;
-      const centerWeight = Math.exp(-Math.pow(normX * 1.8, 2));
+      const lutIdx = Math.min(LUT_SIZE - 1, Math.max(0, Math.floor(normPlotX * (LUT_SIZE - 1))));
+      const spatialWeight = SPATIAL_ENVELOPE_LUT[lutIdx];
 
-      const idleWave = Math.sin(normPlotX * 15 + time * 2 + b * 0.4) * 3 * centerWeight * (is3D ? scaleZ : 1.0);
+      const idleWave = Math.sin(normPlotX * 15 + time * 2 + b * 0.4) * 3 * spatialWeight * (is3D ? scaleZ : 1.0);
       ctx.lineTo(x, y - idleWave);
     }
 

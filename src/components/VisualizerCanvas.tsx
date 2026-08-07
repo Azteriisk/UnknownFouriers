@@ -61,11 +61,8 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Try acquiring WebGL context for GPU acceleration, fallback to Canvas 2D
-    const gl = (canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: true }) ||
-      canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
-
-    const ctx = gl ? null : canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
 
     if (!fogCanvasRef.current && typeof document !== 'undefined') {
       fogCanvasRef.current = document.createElement('canvas');
@@ -83,8 +80,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
 
-      if (ctx) ctx.scale(dpr, dpr);
-      if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+      ctx.scale(dpr, dpr);
 
       if (summedWaveformRef.current.length < width) {
         summedWaveformRef.current = new Float32Array(width);
@@ -130,41 +126,21 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       const history = engine ? engine.getHistoryBuffer(config.windowSeconds) : [];
       const historyLen = history.length;
 
-      // Render using WebGL GPU or Canvas 2D Fallback
-      if (ctx) {
-        renderCanvas2D(
-          ctx,
-          width,
-          height,
-          history,
-          historyLen,
-          config,
-          bottomReservedHeight,
-          globalTime,
-          fogFrameCounter,
-          fogCanvasRef.current,
-          summedWaveformRef.current,
-          cachedGradientRef,
-          qualityScaleRef.current
-        );
-      } else if (gl) {
-        renderCanvas2DWebGLFallback(
-          gl,
-          canvas,
-          width,
-          height,
-          history,
-          historyLen,
-          config,
-          bottomReservedHeight,
-          globalTime,
-          fogFrameCounter,
-          fogCanvasRef.current,
-          summedWaveformRef.current,
-          cachedGradientRef,
-          qualityScaleRef.current
-        );
-      }
+      renderCanvas2D(
+        ctx,
+        width,
+        height,
+        history,
+        historyLen,
+        config,
+        bottomReservedHeight,
+        globalTime,
+        fogFrameCounter,
+        fogCanvasRef.current,
+        summedWaveformRef.current,
+        cachedGradientRef,
+        qualityScaleRef.current
+      );
 
       animFrameId.current = requestAnimationFrame(render);
     };

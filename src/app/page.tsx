@@ -704,38 +704,31 @@ export default function Home() {
         {/* Audio Input Selector Sub-dock Drawer */}
         {isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && (
           <div className="sub-dock-row input-selector-drawer">
-            {activeInput !== 'mic' && (
-              <button className="mini-chip-btn" onClick={handleMicClick}>
-                <Mic className="tiny-icon" /> Live Mic
-              </button>
-            )}
-            {activeInput !== 'system' && (
-              <button className="mini-chip-btn" onClick={handleSystemAudioClick}>
-                <Monitor className="tiny-icon" /> Tab / System
-              </button>
-            )}
-            {activeInput !== 'keyboard' && (
-              <button className="mini-chip-btn" onClick={handleKeyboardSynthClick}>
-                <Keyboard className="tiny-icon" /> QWERTY / MIDI Piano
-              </button>
-            )}
-            {activeInput !== 'file' && (
-              <label className="mini-chip-btn" title="Upload local audio file (100% Client-Side Local Processing Only)">
-                <Upload className="tiny-icon" />
-                <span>{uploadedFileName ? (uploadedFileName.length > 18 ? uploadedFileName.slice(0, 16) + '…' : uploadedFileName) : 'Local File'}</span>
-                <input type="file" accept="audio/*" className="hidden-file-input" onChange={handleFileUpload} />
-              </label>
-            )}
-            {activeInput !== 'youtube' && (
-              <button className="mini-chip-btn" onClick={() => { setActiveInput('youtube'); setIsInputSelectorOpen(false); }}>
-                <Video className="tiny-icon text-red-400" /> YouTube
-              </button>
-            )}
-            {activeInput !== 'preset' && (
-              <button className="mini-chip-btn" onClick={() => { setActiveInput('preset'); setIsInputSelectorOpen(false); }}>
-                <Music className="tiny-icon" /> Synth Presets
-              </button>
-            )}
+            <button className={`mini-chip-btn ${activeInput === 'mic' ? 'active' : ''}`} onClick={handleMicClick}>
+              <Mic className="tiny-icon" /> Live Mic
+            </button>
+            
+            <button className={`mini-chip-btn ${activeInput === 'system' ? 'active' : ''}`} onClick={handleSystemAudioClick}>
+              <Monitor className="tiny-icon" /> Tab / System
+            </button>
+            
+            <button className={`mini-chip-btn ${activeInput === 'keyboard' ? 'active' : ''}`} onClick={handleKeyboardSynthClick}>
+              <Keyboard className="tiny-icon" /> QWERTY / MIDI Piano
+            </button>
+            
+            <label className={`mini-chip-btn ${activeInput === 'file' ? 'active' : ''}`} title="Upload local audio file (100% Client-Side Local Processing Only)">
+              <Upload className="tiny-icon" />
+              <span>{uploadedFileName ? (uploadedFileName.length > 18 ? uploadedFileName.slice(0, 16) + '…' : uploadedFileName) : 'Local File'}</span>
+              <input type="file" accept="audio/*" className="hidden-file-input" onChange={handleFileUpload} />
+            </label>
+            
+            <button className={`mini-chip-btn ${activeInput === 'youtube' ? 'active' : ''}`} onClick={() => { setActiveInput('youtube'); setIsInputSelectorOpen(false); }}>
+              <Video className="tiny-icon text-red-400" /> YouTube
+            </button>
+            
+            <button className={`mini-chip-btn ${activeInput === 'preset' ? 'active' : ''}`} onClick={() => { setActiveInput('preset'); setIsInputSelectorOpen(false); }}>
+              <Music className="tiny-icon" /> Synth Presets
+            </button>
           </div>
         )}
 
@@ -761,26 +754,18 @@ export default function Home() {
         {/* Sub-dock row for Demo Audio Presets */}
         {activeInput === 'preset' && !isColorDrawerOpen && !isSliceDrawerOpen && (
           <div className="sub-dock-row">
-            {activePreset !== 'synth_chords' && (
-              <button className="mini-chip-btn" onClick={() => handlePresetSelect('synth_chords')}>
-                Synth
-              </button>
-            )}
-            {activePreset !== 'drum_beat' && (
-              <button className="mini-chip-btn" onClick={() => handlePresetSelect('drum_beat')}>
-                Drums
-              </button>
-            )}
-            {activePreset !== 'vocal_arpeggio' && (
-              <button className="mini-chip-btn" onClick={() => handlePresetSelect('vocal_arpeggio')}>
-                Arpeggio
-              </button>
-            )}
-            {activePreset !== 'frequency_sweep' && (
-              <button className="mini-chip-btn" onClick={() => handlePresetSelect('frequency_sweep')}>
-                Sweep
-              </button>
-            )}
+            <button className={`mini-chip-btn ${activePreset === 'synth_chords' ? 'active' : ''}`} onClick={() => handlePresetSelect('synth_chords')}>
+              Synth
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'drum_beat' ? 'active' : ''}`} onClick={() => handlePresetSelect('drum_beat')}>
+              Drums
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'vocal_arpeggio' ? 'active' : ''}`} onClick={() => handlePresetSelect('vocal_arpeggio')}>
+              Arpeggio
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'frequency_sweep' ? 'active' : ''}`} onClick={() => handlePresetSelect('frequency_sweep')}>
+              Sweep
+            </button>
           </div>
         )}
 

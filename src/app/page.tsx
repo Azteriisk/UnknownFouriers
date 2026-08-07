@@ -127,6 +127,37 @@ export default function Home() {
     };
   }, []);
 
+  // Synchronize URL Hash for 0ms shared theme loading
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const parseHashTheme = () => {
+      try {
+        const hash = window.location.hash.substring(1);
+        if (!hash) return;
+
+        const params = new URLSearchParams(hash);
+        const dir = params.get('dir') as GradientDirection | null;
+        const stopsRaw = params.get('stops');
+
+        if (stopsRaw) {
+          const stops = JSON.parse(decodeURIComponent(stopsRaw)) as GradientStop[];
+          if (Array.isArray(stops) && stops.length > 0) {
+            setConfig((prev) => ({
+              ...prev,
+              gradientDirection: dir || prev.gradientDirection,
+              gradientStops: stops,
+            }));
+          }
+        }
+      } catch { /* ignore invalid hash */ }
+    };
+
+    parseHashTheme();
+    window.addEventListener('hashchange', parseHashTheme);
+    return () => window.removeEventListener('hashchange', parseHashTheme);
+  }, []);
+
   // Listen for QWERTY computer keyboard notes when in Keyboard Synth Mode
   useEffect(() => {
     if (activeInput !== 'keyboard' || !engine) return;

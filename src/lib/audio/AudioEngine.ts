@@ -170,7 +170,15 @@ export class AudioEngine {
     await this.initContext();
     this.stopAllSources();
 
-    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    this.micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 1,
+      },
+      video: false,
+    });
     if (!this.ctx || !this.analyser) return;
 
     this.micNode = this.ctx.createMediaStreamSource(this.micStream);
@@ -184,8 +192,25 @@ export class AudioEngine {
     await this.initContext();
     this.stopAllSources();
 
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-    displayStream.getVideoTracks().forEach((track) => track.stop());
+    // Optimize getDisplayMedia constraints to request minimal 1px 1fps video stream
+    // to prevent heavy OS GPU video capture and encoding overhead
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+      video: {
+        width: { max: 1 },
+        height: { max: 1 },
+        frameRate: { max: 1 },
+      },
+    } as DisplayMediaStreamOptions);
+
+    displayStream.getVideoTracks().forEach((track) => {
+      track.enabled = false;
+      track.stop();
+    });
 
     const audioTracks = displayStream.getAudioTracks();
     if (audioTracks.length === 0) {

@@ -25,6 +25,8 @@ export interface VisualizerConfig {
   bgColor: string; // hex color for background (default #020204)
   is3DTilt?: boolean; // 3D Isometric tilt perspective toggle
   tiltAngle?: number; // 0 to 60 degrees tilt angle
+  reverseTimeFlow?: boolean; // Toggle left-to-right vs right-to-left time flow
+  reversePitchOrder?: boolean; // Toggle bass-to-treble vs treble-to-bass vertical stack
 }
 
 export type PresetTrack = 'synth_chords' | 'drum_beat' | 'vocal_arpeggio' | 'frequency_sweep';

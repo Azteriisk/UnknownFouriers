@@ -583,6 +583,22 @@ export default function Home() {
               >
                 Panoramic Wave (4.5s)
               </button>
+
+              <button
+                className={`mini-chip-btn ${config.reverseTimeFlow ? 'active' : ''}`}
+                onClick={() => setConfig((prev) => ({ ...prev, reverseTimeFlow: !prev.reverseTimeFlow }))}
+                title="Reverse Horizontal Wave Flow Direction (Left-to-Right vs Right-to-Left)"
+              >
+                Flow: {config.reverseTimeFlow ? 'Right ← Left' : 'Left → Right'}
+              </button>
+
+              <button
+                className={`mini-chip-btn ${config.reversePitchOrder ? 'active' : ''}`}
+                onClick={() => setConfig((prev) => ({ ...prev, reversePitchOrder: !prev.reversePitchOrder }))}
+                title="Reverse Vertical Octave Pitch Order (Low-to-High vs High-to-Low)"
+              >
+                Stack: {config.reversePitchOrder ? 'High → Low' : 'Low → High'}
+              </button>
             </div>
 
             <div className="drawer-section sliders-section">

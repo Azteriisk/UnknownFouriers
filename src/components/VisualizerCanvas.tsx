@@ -164,6 +164,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
       // Render stacked ridgeline curves from back (b = bandCount - 1) to front (b = 0)
       for (let b = bandCount - 1; b >= 0; b--) {
         const floatyOffset = Math.sin(globalTime * 1.2 + b * 0.18) * (isMobile ? 3 : 5);
+        const effectiveB = config.reversePitchOrder ? (bandCount - 1 - b) : b;
 
         // True 3D Perspective Projection Calculation
         const depthProgress = b / bandCount; // 0.0 (front) to 1.0 (back)
@@ -180,7 +181,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
           lineBaseY = startY - depthCompressY + floatyOffset * scaleZ;
         }
 
-        const baseFreq = minHz * Math.pow(hzRatio, b / bandCount);
+        const baseFreq = minHz * Math.pow(hzRatio, effectiveB / bandCount);
 
         const path = new Path2D();
         const fillPath = new Path2D();
@@ -189,16 +190,17 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
 
         for (let x = lineStartX; x <= lineEndX; x += stepX * (is3D ? scaleZ : 1.0)) {
           const normPlotX = (x - lineStartX) / linePlotWidth; // 0.0 to 1.0
+          const timeProgress = config.reverseTimeFlow ? (1.0 - normPlotX) : normPlotX;
 
-          const exactIdx = normPlotX * (historyLen - 1);
+          const exactIdx = timeProgress * (historyLen - 1);
           const idx0 = Math.floor(exactIdx);
           const idx1 = Math.min(historyLen - 1, idx0 + 1);
           const frac = exactIdx - idx0;
 
           const frame0 = history[idx0];
           const frame1 = history[idx1];
-          const amp0 = frame0 ? frame0[b] : 0;
-          const amp1 = frame1 ? frame1[b] : 0;
+          const amp0 = frame0 ? frame0[effectiveB] : 0;
+          const amp1 = frame1 ? frame1[effectiveB] : 0;
           const amp = amp0 * (1 - frac) + amp1 * frac;
 
           const time = normPlotX * config.windowSeconds;

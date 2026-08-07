@@ -227,7 +227,8 @@ export class AudioEngine {
 
     const audioTracks = displayStream.getAudioTracks();
     if (audioTracks.length === 0) {
-      throw new Error('No audio track selected. Make sure to check "Share audio" in browser prompt.');
+      displayStream.getTracks().forEach((t) => t.stop());
+      throw new Error('No audio track selected. Make sure to check "Share audio". (Note: Firefox/Zen often lack system audio capture support depending on your OS. Try Chrome/Edge if this persists).');
     }
 
     if (!this.ctx || !this.analyser) return;

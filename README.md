@@ -194,7 +194,7 @@ Fourier analysis continues to drive cutting-edge breakthroughs at the boundaries
 ### Installation
 ```bash
 # Clone repository
-git clone https://github.com/thera/sound_stuff.git
+git clone https://github.com/Azteriisk/sound_stuff.git
 
 # Navigate into project directory
 cd sound_stuff

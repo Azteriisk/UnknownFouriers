@@ -3,7 +3,7 @@
 'use client';
 
 import React from 'react';
-import { X, Activity, Radio, Cpu, Github } from 'lucide-react';
+import { X, Activity, Radio, Cpu, ExternalLink } from 'lucide-react';
 
 interface ExplanationModalProps {
   isOpen: boolean;
@@ -80,13 +80,13 @@ export const ExplanationModal: React.FC<ExplanationModalProps> = ({ isOpen, onCl
 
         <div className="modal-footer">
           <a
-            href="https://github.com/thera/sound_stuff"
+            href="https://github.com/Azteriisk/sound_stuff"
             target="_blank"
             rel="noopener noreferrer"
             className="github-repo-link"
             title="Explore source code and Fourier mathematics documentation on GitHub"
           >
-            <Github className="tiny-icon" /> View Source & Fourier Research →
+            <ExternalLink className="tiny-icon" /> View Source & Fourier Research →
           </a>
 
           <button className="primary-modal-btn" onClick={onClose}>

@@ -192,20 +192,33 @@ export class AudioEngine {
     await this.initContext();
     this.stopAllSources();
 
-    // Optimize getDisplayMedia constraints to request minimal 1px 1fps video stream
-    // to prevent heavy OS GPU video capture and encoding overhead
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
-      video: {
-        width: { max: 1 },
-        height: { max: 1 },
-        frameRate: { max: 1 },
-      },
-    } as DisplayMediaStreamOptions);
+    let displayStream: MediaStream;
+    try {
+      // Optimize getDisplayMedia constraints to request minimal 1px 1fps video stream
+      // to prevent heavy OS GPU video capture and encoding overhead
+      displayStream = await navigator.mediaDevices.getDisplayMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: {
+          width: { max: 1 },
+          height: { max: 1 },
+          frameRate: { max: 1 },
+        },
+      } as DisplayMediaStreamOptions);
+    } catch (err) {
+      // Fallback for Firefox/Zen/Safari which often reject strict video constraints
+      displayStream = await navigator.mediaDevices.getDisplayMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: true,
+      });
+    }
 
     displayStream.getVideoTracks().forEach((track) => {
       track.enabled = false;

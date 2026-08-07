@@ -477,6 +477,21 @@ export default function Home() {
               >
                 <Box className="tiny-icon" /> 3D Tilt ({config.is3DTilt ? 'ON' : 'OFF'})
               </button>
+
+              {config.is3DTilt && (
+                <label className="color-picker-label slider-label">
+                  <span>Tilt Pitch: ({config.tiltAngle ?? 35}°)</span>
+                  <input
+                    type="range"
+                    min="15"
+                    max="75"
+                    step="1"
+                    value={config.tiltAngle ?? 35}
+                    onChange={(e) => setConfig((prev) => ({ ...prev, tiltAngle: parseInt(e.target.value) }))}
+                    className="sub-dock-slider"
+                  />
+                </label>
+              )}
             </div>
 
             {/* Sliders */}

@@ -298,7 +298,14 @@ function renderCanvas2D(
 
     for (let x = lineStartX; x <= lineEndX; x += stepInc) {
       const normPlotX = (x - lineStartX) / linePlotWidth;
-      const timeProgress = config.reverseTimeFlow ? (1.0 - normPlotX) : normPlotX;
+      let timeProgress = normPlotX;
+      if (config.timeFlowMode === 'right_to_left') {
+        timeProgress = 1.0 - normPlotX;
+      } else if (config.timeFlowMode === 'center_out') {
+        timeProgress = Math.abs(normPlotX - 0.5) * 2.0;
+      } else if (config.timeFlowMode === 'edges_in') {
+        timeProgress = 1.0 - (Math.abs(normPlotX - 0.5) * 2.0);
+      }
 
       const exactIdx = timeProgress * (historyLen - 1);
       const idx0 = Math.floor(exactIdx);

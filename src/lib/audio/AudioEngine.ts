@@ -25,7 +25,7 @@ export interface VisualizerConfig {
   bgColor: string; // hex color for background (default #020204)
   is3DTilt?: boolean; // 3D Isometric tilt perspective toggle
   tiltAngle?: number; // 0 to 60 degrees tilt angle
-  reverseTimeFlow?: boolean; // Toggle left-to-right vs right-to-left time flow
+  timeFlowMode?: 'left_to_right' | 'right_to_left' | 'center_out' | 'edges_in'; // Time flow direction
   reversePitchOrder?: boolean; // Toggle bass-to-treble vs treble-to-bass vertical stack
 }
 

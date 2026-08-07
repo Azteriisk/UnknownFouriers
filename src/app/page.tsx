@@ -616,11 +616,16 @@ export default function Home() {
               </button>
 
               <button
-                className={`mini-chip-btn ${config.reverseTimeFlow ? 'active' : ''}`}
-                onClick={() => setConfig((prev) => ({ ...prev, reverseTimeFlow: !prev.reverseTimeFlow }))}
-                title="Reverse Horizontal Wave Flow Direction (Left-to-Right vs Right-to-Left)"
+                className="mini-chip-btn active"
+                onClick={() => {
+                  const modes: Array<'left_to_right' | 'right_to_left' | 'center_out' | 'edges_in'> = ['left_to_right', 'right_to_left', 'center_out', 'edges_in'];
+                  const currentMode = config.timeFlowMode || 'left_to_right';
+                  const nextIndex = (modes.indexOf(currentMode) + 1) % modes.length;
+                  setConfig((prev) => ({ ...prev, timeFlowMode: modes[nextIndex] }));
+                }}
+                title="Change Horizontal Wave Flow Direction"
               >
-                Flow: {config.reverseTimeFlow ? 'Right ← Left' : 'Left → Right'}
+                Flow: {config.timeFlowMode === 'right_to_left' ? 'Right ← Left' : config.timeFlowMode === 'center_out' ? 'Center ↔ Out' : config.timeFlowMode === 'edges_in' ? 'Edges → In' : 'Left → Right'}
               </button>
 
               <button

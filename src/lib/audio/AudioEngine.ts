@@ -189,6 +189,10 @@ export class AudioEngine {
   }
 
   public async startSystemAudio(): Promise<void> {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      throw new Error('System audio capture is not supported on this device/browser (e.g., iOS Safari).');
+    }
+
     await this.initContext();
     this.stopAllSources();
 

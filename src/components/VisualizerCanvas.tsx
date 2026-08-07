@@ -454,14 +454,34 @@ function renderCanvas2DWebGLFallback(
   }
 }
 
-// Export 4K High-Res Canvas Snapshot Poster
 export function download4KSnapshot(canvas: HTMLCanvasElement | null) {
   if (!canvas) return;
   try {
-    const link = document.createElement('a');
-    link.download = `unknown_frequencies_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `unknown_frequencies_${Date.now()}.png`, { type: 'image/png' });
+
+      // Try Web Share API first (Native iOS/Android share sheet)
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Unknown Frequencies Snapshot',
+          });
+          return; // Successfully shared, skip fallback download
+        } catch (e) {
+          // Fallthrough if share is cancelled or fails
+        }
+      }
+
+      // Fallback to traditional download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = file.name;
+      link.href = url;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
   } catch { /* ignore */ }
 }
 

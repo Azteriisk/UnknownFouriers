@@ -12,6 +12,47 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Custom Sleek Minimal Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Eliminate horizontal scrollbars completely across sub-docks */
+.sub-dock-row,
+.drawer-section,
+.gradient-presets-group,
+.stops-section,
+.input-selector-drawer {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.sub-dock-row::-webkit-scrollbar,
+.drawer-section::-webkit-scrollbar,
+.gradient-presets-group::-webkit-scrollbar,
+.stops-section::-webkit-scrollbar,
+.input-selector-drawer::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -245,14 +286,15 @@ html, body {
 .sub-dock-row {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  background: rgba(10, 10, 15, 0.8);
+  background: rgba(10, 10, 15, 0.85);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.35rem 0.85rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 9999px;
   max-width: 94vw;
-  overflow-x: auto;
 }
 
 .sub-dock-row.multiline-drawer {
@@ -493,7 +535,8 @@ html, body {
 .subtitle-mono {
   font-size: 0.65rem;
   font-family: var(--font-mono);
-  color: var(--accent-cyan);
+  color: var(--accent-white);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
   letter-spacing: 0.1em;
 }
 
@@ -540,7 +583,8 @@ html, body {
   font-size: 0.72rem;
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
-  color: var(--accent-cyan);
+  color: var(--accent-white);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
   display: flex;
   align-items: center;
   gap: 0.4rem;

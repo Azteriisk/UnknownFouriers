@@ -1,4 +1,4 @@
-# UNKNOWN FREQUENCIES — Ridgeline Audio Visualizer & Fourier Synthesis Engine
+# UNKNOWN FREQUENCIES: Ridgeline Audio Visualizer & Fourier Synthesis Engine
 
 > A real-time Web Audio Fourier Transform Ridgeline Visualizer & Spectral Decomposition Engine inspired by Peter Saville's iconic 1979 album cover for Joy Division's *Unknown Pleasures* (transposing signal pulse data recorded from **Pulsar CP 1919**).
 
@@ -25,7 +25,7 @@
 
 In July 1967, astrophysicist **Jocelyn Bell Burnell** discovered the first radio pulsar (**CP 1919** / PSR B1919+21) at the Mullard Radio Astronomy Observatory. The continuous periodic pulses emitted by the dying neutron star were recorded as stacked signal line histograms by the Cambridge University radio telescope. In 1979, graphic designer **Peter Saville** inverted these histograms onto a pitch-black canvas for Joy Division's debut album *Unknown Pleasures*.
 
-This web application recreates that legendary aesthetic in **real-time 60 FPS Canvas 2D rendering**, allowing any live acoustic signal — whether from a microphone, local audio file, YouTube video, or browser tab — to be decomposed into stacked harmonic ridgeline sines.
+This web application recreates that legendary aesthetic in **real-time 60 FPS Canvas 2D rendering**, allowing any live acoustic signal (whether from a microphone, local audio file, YouTube video, or browser tab) to be decomposed into stacked harmonic ridgeline sines.
 
 ---
 
@@ -106,7 +106,7 @@ All uploaded local audio files (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`) are pro
 
 In 1822, French mathematician and physicist **Jean-Baptiste Joseph Fourier** published his ground-breaking treatise *Théorie Analytique de la Chaleur* (*Analytical Theory of Heat*).
 
-Fourier put forward a revolutionary and initially controversial claim: **Any arbitrary function — no matter how complex or discontinuous — can be represented as an infinite sum of simple, harmonic sinusoidal components (sines and cosines)**.
+Fourier put forward a revolutionary and initially controversial claim: **Any arbitrary function (no matter how complex or discontinuous) can be represented as an infinite sum of simple, harmonic sinusoidal components (sines and cosines)**.
 
 Though initially met with skepticism by contemporary mathematicians such as Lagrange and Laplace due to convergence questions, Fourier's work laid the foundational bedrock of modern mathematical analysis, differential equations, and signal processing.
 
@@ -177,11 +177,11 @@ Fourier analysis is arguably the single most impactful mathematical tool in mode
 Fourier analysis continues to drive cutting-edge breakthroughs at the boundaries of physics, computer science, and artificial intelligence:
 
 1. **Quantum Fourier Transform (QFT)**:
-   In quantum computing, the Quantum Fourier Transform performs an FFT on quantum state amplitudes using quantum logic gates. While classical FFT runs in $O(N \log N)$, QFT executes in $O((\log N)^2)$ time — providing the exponential speedup at the heart of **Shor's Algorithm** for factoring large prime numbers and breaking RSA encryption.
+   In quantum computing, the Quantum Fourier Transform performs an FFT on quantum state amplitudes using quantum logic gates. While classical FFT runs in $O(N \log N)$, QFT executes in $O((\log N)^2)$ time, providing the exponential speedup at the heart of **Shor's Algorithm** for factoring large prime numbers and breaking RSA encryption.
 2. **Photonic & Optical Computing**:
    Physical lenses naturally perform an instantaneous two-dimensional Fourier transform on coherent laser light passing through them at the speed of light ($O(1)$ constant time complexity). Photonic processors leverage optical Fourier optics to perform ultra-low-power matrix multiplications for AI acceleration.
 3. **Fourier Neural Operators (FNO)**:
-   In deep learning, Fourier Neural Operators map infinite-dimensional function spaces using spectral domain convolutions. FNOs solve complex non-linear Partial Differential Equations (PDEs) — such as Navier-Stokes fluid dynamics, weather forecasting, and climate modeling — up to **1000x faster** than traditional supercomputer numerical solvers.
+   In deep learning, Fourier Neural Operators map infinite-dimensional function spaces using spectral domain convolutions. FNOs solve complex non-linear Partial Differential Equations (PDEs), such as Navier-Stokes fluid dynamics, weather forecasting, and climate modeling, up to **1000x faster** than traditional supercomputer numerical solvers.
 
 ---
 
@@ -212,4 +212,4 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser to start
 
 ## License
 
-MIT License — feel free to explore, fork, and build upon this spectral engine!
+MIT License: feel free to explore, fork, and build upon this spectral engine!

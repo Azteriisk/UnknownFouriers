@@ -36,7 +36,7 @@ export const ExplanationModal: React.FC<ExplanationModalProps> = ({ isOpen, onCl
               <span>01 / FOURIER SPECTRAL ANALYSIS</span>
             </div>
             <p>
-              In 1822, mathematician <strong>Joseph Fourier</strong> established that any acoustic signal — from acoustic instruments to complex synthesized sound — is composed of individual pure sinusoidal wave partials combined across time.
+              In 1822, mathematician <strong>Joseph Fourier</strong> established that any acoustic signal (from acoustic instruments to complex synthesized sound) is composed of individual pure sinusoidal wave partials combined across time.
             </p>
           </div>
 

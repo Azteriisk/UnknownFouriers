@@ -61,7 +61,8 @@
 
 html, body {
   width: 100vw;
-  height: 100vh;
+  height: 100vh; /* Fallback for older browsers */
+  height: 100dvh;
   overflow: hidden;
   background-color: var(--bg-deep);
   color: var(--text-main);
@@ -73,6 +74,7 @@ html, body {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg-deep);
 }

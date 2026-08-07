@@ -191,6 +191,7 @@ function renderCanvas2D(
     }
   }
 
+  const isFirefox = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('firefox');
   const bloomBlur = (config.glowBlur || 0) * qualityScale;
   const masterOpacity = config.opacity ?? 1.0;
   const primaryLineColor = config.gradientStops?.[0]?.color || '#ffffff';
@@ -347,7 +348,7 @@ function renderCanvas2D(
     ctx.fillStyle = config.bgColor || '#020204';
     ctx.fill(item.fillPath);
 
-    if (bloomBlur > 2 && masterOpacity > 0.01) {
+    if (bloomBlur > 2 && masterOpacity > 0.01 && !isFirefox) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineWidth = isMobile ? 3.0 : 4.5;
@@ -363,7 +364,8 @@ function renderCanvas2D(
     ctx.lineWidth = isMobile ? 1.4 : 1.8;
     ctx.strokeStyle = lineStrokeStyle;
     ctx.shadowColor = primaryLineColor;
-    ctx.shadowBlur = Math.min(15, bloomBlur * 0.5);
+    // Firefox uses a slightly stronger shadow here since it skips the heavy additive lighter pass
+    ctx.shadowBlur = Math.min(isFirefox ? 25 : 15, bloomBlur * (isFirefox ? 1.2 : 0.5));
     ctx.globalAlpha = 1.0 * masterOpacity;
     ctx.stroke(item.path);
     ctx.shadowBlur = 0;
@@ -385,7 +387,7 @@ function renderCanvas2D(
       }
     }
 
-    if (bloomBlur > 2 && masterOpacity > 0.01) {
+    if (bloomBlur > 2 && masterOpacity > 0.01 && !isFirefox) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineWidth = isMobile ? 4.0 : 5.5;
@@ -401,7 +403,7 @@ function renderCanvas2D(
     ctx.lineWidth = isMobile ? 1.6 : 2.0;
     ctx.strokeStyle = config.sumLineColor || '#ffffff';
     ctx.shadowColor = config.sumLineColor || '#ffffff';
-    ctx.shadowBlur = Math.min(12, bloomBlur * 0.6);
+    ctx.shadowBlur = Math.min(isFirefox ? 20 : 12, bloomBlur * (isFirefox ? 1.0 : 0.6));
     ctx.globalAlpha = 1.0 * masterOpacity;
     ctx.stroke(sumPath);
     ctx.shadowBlur = 0;

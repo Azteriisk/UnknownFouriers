@@ -577,44 +577,6 @@ export default function Home() {
         {isSliceDrawerOpen && (
           <div className="sub-dock-row multiline-drawer">
             <div className="drawer-section">
-              <span className="section-title-mono">SLICE PRESETS:</span>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 2.0, minFreq: 40, maxFreq: 9000, bandCount: 32, lineSpacing: 12 }))}
-              >
-                Default (Full Range)
-              </button>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 1.5, minFreq: 20, maxFreq: 250, bandCount: 24, lineSpacing: 16 }))}
-              >
-                Sub-Bass & Kicks (20-250Hz)
-              </button>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 2.0, minFreq: 250, maxFreq: 3500, bandCount: 36, lineSpacing: 12 }))}
-              >
-                Vocal & Lead Mids (250-3500Hz)
-              </button>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 1.0, minFreq: 3500, maxFreq: 16000, bandCount: 32, lineSpacing: 10 }))}
-              >
-                Air Treble (3.5-16kHz)
-              </button>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 0.35, minFreq: 40, maxFreq: 12000, bandCount: 48, lineSpacing: 8 }))}
-              >
-                Micro Transients (0.35s)
-              </button>
-              <button
-                className="mini-chip-btn"
-                onClick={() => setConfig((prev) => ({ ...prev, windowSeconds: 4.5, minFreq: 40, maxFreq: 9000, bandCount: 32, lineSpacing: 14 }))}
-              >
-                Panoramic Wave (4.5s)
-              </button>
-
               <button
                 className="mini-chip-btn active"
                 onClick={() => {

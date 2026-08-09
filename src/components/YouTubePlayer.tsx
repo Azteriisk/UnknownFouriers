@@ -126,7 +126,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         autoplay: 1,
         controls: 1,
         enablejsapi: 1,
-        origin: window.location.origin,
+        origin: window.location.protocol === 'file:' ? 'https://www.youtube.com' : window.location.origin,
       };
 
       if (pId) {

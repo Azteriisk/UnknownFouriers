@@ -1,5 +1,25 @@
 // AudioEngine.ts - Web Audio API Engine with Zero-GC Buffer Pool, MIDI & Computer QWERTY Synth
 
+if (typeof window !== 'undefined') {
+  (window as any).__globalWallpaperAudio = new Array(128).fill(0);
+  const hookWE = () => {
+    if ((window as any).wallpaperRegisterAudioListener) {
+      (window as any).wallpaperRegisterAudioListener((audioArray: number[]) => {
+        (window as any).__globalWallpaperAudio = audioArray;
+      });
+    }
+  };
+  hookWE();
+  if (!(window as any).wallpaperRegisterAudioListener) {
+    const timer = setInterval(() => {
+      if ((window as any).wallpaperRegisterAudioListener) {
+        hookWE();
+        clearInterval(timer);
+      }
+    }, 100);
+  }
+}
+
 export interface GradientStop {
   id: string;
   color: string;
@@ -31,7 +51,7 @@ export interface VisualizerConfig {
 
 export type PresetTrack = 'synth_chords' | 'drum_beat' | 'vocal_arpeggio' | 'frequency_sweep';
 
-export type AudioInputType = 'mic' | 'file' | 'youtube' | 'preset' | 'system' | 'keyboard';
+export type AudioInputType = 'mic' | 'file' | 'youtube' | 'preset' | 'system' | 'keyboard' | 'wallpaper';
 
 export interface AudioEngineCallbacks {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
@@ -89,6 +109,9 @@ export class AudioEngine {
 
   private activeInput: AudioInputType = 'preset';
   private isPlaying: boolean = false;
+  private isAudioResponsive: boolean = true;
+  private audioSensitivity: number = 10.0;
+  private wallpaperAudioData: number[] = new Array(128).fill(0);
 
   // Zero-GC Pre-allocated Reusable Buffer Pool
   private historyBuffer: Float32Array[] = [];
@@ -285,6 +308,45 @@ export class AudioEngine {
     this.activeInput = 'file';
     this.isPlaying = true;
     if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
+  }
+
+  public startWallpaperEngine(): void {
+    this.stopAllSources();
+    this.activeInput = 'wallpaper';
+    this.isPlaying = true;
+    
+    const tryRegister = () => {
+      if (typeof window !== 'undefined' && (window as any).wallpaperRegisterAudioListener) {
+        (window as any).wallpaperRegisterAudioListener((audioArray: number[]) => {
+          this.wallpaperAudioData = audioArray;
+          if (typeof window !== 'undefined') {
+            (window as any).__globalWallpaperAudio = audioArray;
+          }
+        });
+        return true;
+      }
+      return false;
+    };
+
+    if (!tryRegister() && typeof window !== 'undefined') {
+      let retries = 0;
+      const timer = setInterval(() => {
+        retries++;
+        if (tryRegister() || retries > 50) {
+          clearInterval(timer);
+        }
+      }, 100);
+    }
+    
+    if (this.callbacks.onStateChange) this.callbacks.onStateChange(true);
+  }
+
+  public setAudioSensitivity(sensitivity: number): void {
+    this.audioSensitivity = Math.max(1, Math.min(200, sensitivity));
+  }
+
+  public setAudioResponsive(isResponsive: boolean): void {
+    this.isAudioResponsive = isResponsive;
   }
 
   // Start Keyboard / MIDI Virtual Synth Mode
@@ -644,6 +706,10 @@ export class AudioEngine {
 
   // Zero-GC Frame Processing Loop (Uses Pooled Reusable Float32Array Buffers)
   public processFrame(bandCount: number, minFreq: number = 40, maxFreq: number = 9000): Float32Array {
+    if (this.activeInput === 'wallpaper') {
+      return this.processWallpaperFrame(bandCount);
+    }
+
     if (!this.analyser) {
       return this.getPooledBuffer(bandCount);
     }
@@ -662,9 +728,9 @@ export class AudioEngine {
     // Fetch zero-GC pooled array instead of instantiating new Float32Array
     const bandValues = this.getPooledBuffer(bandCount);
 
-    const minHz = Math.max(20, minFreq);
-    const maxHz = Math.min(18000, Math.max(minHz + 100, maxFreq));
-    const hzRatio = maxHz / minHz;
+    const minHz = Math.max(0, minFreq);
+    const maxHz = Math.min(18000, Math.max(minHz + 10, maxFreq));
+    const hzRatio = Math.max(1.0001, maxHz / Math.max(1, minHz));
 
     for (let i = 0; i < bandCount; i++) {
       const fStart = minHz * Math.pow(hzRatio, i / bandCount);
@@ -692,6 +758,49 @@ export class AudioEngine {
       this.historyBuffer.shift();
     }
 
+    return bandValues;
+  }
+
+  private processWallpaperFrame(bandCount: number): Float32Array {
+    if (this.prevBandValues.length !== bandCount) {
+      this.prevBandValues = new Float32Array(bandCount);
+    }
+
+    const bandValues = this.getPooledBuffer(bandCount);
+    const audioData = (typeof window !== 'undefined' && (window as any).__globalWallpaperAudio)
+      ? (window as any).__globalWallpaperAudio
+      : this.wallpaperAudioData;
+    
+    const monoData = new Float32Array(64);
+    for (let i = 0; i < 64; i++) {
+      monoData[i] = ((audioData[i] || 0) + (audioData[i + 64] || 0)) / 2.0;
+    }
+    
+    const binsPerBand = 64 / bandCount;
+    for (let i = 0; i < bandCount; i++) {
+      let sum = 0;
+      let count = 0;
+      const startBin = Math.floor(i * binsPerBand);
+      const endBin = Math.min(64, Math.floor((i + 1) * binsPerBand));
+      
+      for (let b = startBin; b < endBin; b++) {
+        sum += monoData[b] || 0;
+        count++;
+      }
+      
+      const avg = count > 0 ? sum / count : 0;
+      const rawVal = Math.min(5.0, avg * (this.audioSensitivity * 2.5)); 
+      
+      const smoothed = this.prevBandValues[i] * 0.25 + rawVal * 0.75;
+      this.prevBandValues[i] = smoothed;
+      bandValues[i] = smoothed;
+    }
+    
+    this.historyBuffer.push(bandValues);
+    while (this.historyBuffer.length > this.maxHistoryFrames) {
+      this.historyBuffer.shift();
+    }
+    
     return bandValues;
   }
 

@@ -1,0 +1,165 @@
+{
+  "title": "Unknown Frequencies",
+  "type": "web",
+  "file": "index.html",
+  "preview": "preview.png",
+  "description": "Ridgeline Audio Visualizer mapped to your system audio.",
+  "contentrating": "Everyone",
+  "general": {
+    "supportsaudioprocessing": true,
+    "properties": {
+      "theme": {
+        "order": 1,
+        "text": "Theme Preset",
+        "type": "combo",
+        "value": "custom",
+        "options": [
+          { "label": "Custom Colors", "value": "custom" },
+          { "label": "Cyber Sunset", "value": "cyber_sunset" },
+          { "label": "Tokyo Neon", "value": "tokyo_neon" },
+          { "label": "Pulsar White", "value": "pulsar_white" },
+          { "label": "Deep Emerald", "value": "deep_emerald" }
+        ]
+      },
+      "audio_sensitivity": {
+        "order": 2,
+        "text": "Audio Sensitivity",
+        "type": "slider",
+        "value": 40,
+        "min": 1,
+        "max": 150,
+        "fraction": false
+      },
+
+
+      "hide_ui": {
+        "order": 4,
+        "text": "Force Hide UI",
+        "type": "bool",
+        "value": false
+      },
+
+      "bloom": {
+        "order": 6,
+        "text": "Bloom/Glow",
+        "type": "slider",
+        "value": 40,
+        "min": 0,
+        "max": 60,
+        "fraction": false
+      },
+      "fog_density": {
+        "order": 7,
+        "text": "Fog Volume",
+        "type": "slider",
+        "value": 80,
+        "min": 0,
+        "max": 100,
+        "fraction": false
+      },
+      "band_count": {
+        "order": 8,
+        "text": "Sine Count",
+        "type": "slider",
+        "value": 45,
+        "min": 8,
+        "max": 64,
+        "fraction": false
+      },
+      "tilt_angle": {
+        "order": 9,
+        "text": "3D Tilt Angle",
+        "type": "slider",
+        "value": 20,
+        "min": 15,
+        "max": 75,
+        "fraction": false
+      },
+      "bg_color": {
+        "order": 10,
+        "text": "Background Color",
+        "type": "color",
+        "value": "0.0078 0.0078 0.0157"
+      },
+      "sum_color": {
+        "order": 11,
+        "text": "Sum Line Color",
+        "type": "color",
+        "value": "1.0 1.0 1.0"
+      },
+      "primary_color": {
+        "order": 12,
+        "text": "Start Line Color (Custom)",
+        "type": "color",
+        "value": "1.0 1.0 1.0"
+      },
+      "mid_color": {
+        "order": 13,
+        "text": "Mid Line Color (Custom)",
+        "type": "color",
+        "value": "0.6 0.6 0.6"
+      },
+      "secondary_color": {
+        "order": 14,
+        "text": "End Line Color (Custom)",
+        "type": "color",
+        "value": "0.2 0.2 0.2"
+      },
+      "time_flow_mode": {
+        "order": 14,
+        "text": "Horizontal Wave Flow Direction",
+        "type": "combo",
+        "value": "right_to_left",
+        "options": [
+          { "label": "Left → Right", "value": "left_to_right" },
+          { "label": "Right → Left", "value": "right_to_left" },
+          { "label": "Center ↔ Out", "value": "center_out" },
+          { "label": "Edges → In", "value": "edges_in" }
+        ]
+      },
+      "reverse_pitch_order": {
+        "order": 15,
+        "text": "Reverse Pitch Stack (High → Low)",
+        "type": "bool",
+        "value": false
+      },
+      "window_seconds": {
+        "order": 16,
+        "text": "Time Window (Seconds)",
+        "type": "slider",
+        "value": 0.5,
+        "min": 0.25,
+        "max": 5.0,
+        "precision": 2,
+        "fraction": true
+      },
+      "min_freq": {
+        "order": 17,
+        "text": "Min Pitch (Hz)",
+        "type": "slider",
+        "value": 20,
+        "min": 0,
+        "max": 1000,
+        "fraction": false
+      },
+      "max_freq": {
+        "order": 18,
+        "text": "Max Pitch (Hz)",
+        "type": "slider",
+        "value": 3000,
+        "min": 500,
+        "max": 16000,
+        "fraction": false
+      },
+      "line_spacing": {
+        "order": 19,
+        "text": "Line Spacing (px)",
+        "type": "slider",
+        "value": 15,
+        "min": 4,
+        "max": 30,
+        "fraction": false
+      }
+    }
+  }
+}

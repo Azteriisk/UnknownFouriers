@@ -258,9 +258,9 @@ function renderCanvas2D(
   }
   const lineStrokeStyle = cachedGradientRef.current.style;
 
-  const minHz = config.minFreq || 40;
-  const maxHz = config.maxFreq || 9000;
-  const hzRatio = maxHz / minHz;
+  const minHz = config.minFreq ?? 0;
+  const maxHz = config.maxFreq ?? 3000;
+  const hzRatio = Math.max(1.0001, maxHz / Math.max(1, minHz));
   const stepX = (isMobile ? 4 : 2) / qualityScale;
 
   const is3D = config.is3DTilt ?? false;

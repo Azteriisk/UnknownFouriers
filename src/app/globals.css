@@ -212,6 +212,20 @@ html, body {
 }
 
 /* Minimal Spacey Floating Controls Dock */
+.ui-layer {
+  transition: opacity 0.5s ease-in-out, bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ui-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ui-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .floating-dock {
   position: absolute;
   bottom: 2rem;

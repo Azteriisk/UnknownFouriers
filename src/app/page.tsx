@@ -14,14 +14,12 @@ import {
 } from '@/lib/audio/AudioEngine';
 import { VisualizerCanvas, download4KSnapshot } from '@/components/VisualizerCanvas';
 import { ExplanationModal } from '@/components/ExplanationModal';
-import { YouTubePlayer } from '@/components/YouTubePlayer';
 import {
   Waves,
   HelpCircle,
   Mic,
   Monitor,
   Upload,
-  Video,
   Music,
   Play,
   Pause,
@@ -63,7 +61,8 @@ const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: Gra
     direction: 'vertical',
     stops: [
       { id: '1', color: '#ffffff', offset: 0.0 },
-      { id: '2', color: '#666666', offset: 1.0 },
+      { id: '2', color: '#888888', offset: 0.5 },
+      { id: '3', color: '#222222', offset: 1.0 },
     ],
   },
   {
@@ -79,7 +78,7 @@ const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: Gra
 
 export default function Home() {
   const [engine, setEngine] = useState<AudioEngine | null>(null);
-  const [activeInput, setActiveInput] = useState<AudioInputType>('preset');
+  const [activeInput, setActiveInput] = useState<AudioInputType>('system');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -87,31 +86,36 @@ export default function Home() {
   const [isColorDrawerOpen, setIsColorDrawerOpen] = useState<boolean>(false);
   const [isSliceDrawerOpen, setIsSliceDrawerOpen] = useState<boolean>(false);
   const [isInputSelectorOpen, setIsInputSelectorOpen] = useState<boolean>(false);
-  const [youtubeUrl, setYoutubeUrl] = useState<string>('');
-  const [activeYoutubeUrl, setActiveYoutubeUrl] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<PresetTrack>('vocal_arpeggio');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
+  const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
+  const [forceHideUi, setForceHideUi] = useState<boolean>(false);
+  const [uiYOffset, setUiYOffset] = useState<number>(12);
 
   const [config, setConfig] = useState<VisualizerConfig>({
-    windowSeconds: 2,
-    minFreq: 40,
-    maxFreq: 9000,
-    bandCount: 32,
-    lineSpacing: 12,
+    windowSeconds: 0.5,
+    minFreq: 20,
+    maxFreq: 3000,
+    bandCount: 45,
+    lineSpacing: 15,
     gain: 1.0,
     showSummedWave: true,
-    glowBlur: 20,
-    fogDensity: 0.5,
+    glowBlur: 40,
+    fogDensity: 0.8,
     opacity: 0.45,
     gradientDirection: 'vertical',
     gradientStops: [
       { id: '1', color: '#ffffff', offset: 0.0 },
-      { id: '2', color: '#666666', offset: 1.0 },
+      { id: '2', color: '#888888', offset: 0.5 },
+      { id: '3', color: '#222222', offset: 1.0 },
     ],
     sumLineColor: '#ffffff',
     bgColor: '#020204',
     is3DTilt: true,
     tiltAngle: 20,
+    timeFlowMode: 'right_to_left',
+    reversePitchOrder: false,
   });
 
   useEffect(() => {
@@ -190,6 +194,122 @@ export default function Home() {
     };
   }, [activeInput, engine]);
 
+  // Auto-hide UI in Wallpaper Mode
+  useEffect(() => {
+    if (!isWallpaperMode || forceHideUi) {
+      if (forceHideUi) setIsUiVisible(false);
+      else setIsUiVisible(true);
+      return;
+    }
+
+    let timeout: ReturnType<typeof setTimeout>;
+    const handleMouseMove = () => {
+      setIsUiVisible(true);
+      clearTimeout(timeout);
+      timeout = setTimeout(() => setIsUiVisible(false), 3000);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    timeout = setTimeout(() => setIsUiVisible(false), 3000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      clearTimeout(timeout);
+    };
+  }, [isWallpaperMode, forceHideUi]);
+
+  // Wallpaper Engine Property & Audio Listener setup
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Define Property Listener immediately so WE can send settings on load
+    (window as any).wallpaperPropertyListener = {
+      applyUserProperties: (properties: any) => {
+        if (properties.hide_ui) {
+          setForceHideUi(properties.hide_ui.value);
+        }
+        if (properties.ui_y_offset !== undefined) {
+          setUiYOffset(properties.ui_y_offset.value);
+        }
+        const themeSelected = properties.theme && properties.theme.value !== 'custom';
+        if (themeSelected) {
+          const themeVal = properties.theme.value;
+          const preset = PRESET_GRADIENTS.find(p => p.name.toLowerCase().replace(' ', '_') === themeVal);
+          if (preset) {
+            setConfig(prev => ({
+              ...prev,
+              gradientDirection: preset.direction,
+              gradientStops: preset.stops.map(s => ({ ...s }))
+            }));
+          }
+        } else if (properties.primary_color || properties.mid_color || properties.secondary_color) {
+          setConfig((prev) => {
+            const newStops = prev.gradientStops.length === 3 ? [...prev.gradientStops.map(s => ({ ...s }))] : [
+              { id: '1', color: '#ffffff', offset: 0.0 },
+              { id: '2', color: '#888888', offset: 0.5 },
+              { id: '3', color: '#222222', offset: 1.0 },
+            ];
+            if (properties.primary_color) {
+              const c = properties.primary_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
+              if (newStops[0]) newStops[0].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+            }
+            if (properties.mid_color) {
+              const c = properties.mid_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
+              if (newStops[1]) newStops[1].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+            }
+            if (properties.secondary_color) {
+              const c = properties.secondary_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
+              if (newStops[2]) newStops[2].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+            }
+            return { ...prev, gradientStops: newStops };
+          });
+        }
+
+        if (properties.audio_sensitivity && engine) {
+          engine.setAudioSensitivity(properties.audio_sensitivity.value);
+        }
+        if (properties.bloom) setConfig((prev) => ({ ...prev, glowBlur: properties.bloom.value }));
+        if (properties.fog_density) setConfig((prev) => ({ ...prev, fogDensity: properties.fog_density.value / 100 }));
+        if (properties.band_count) setConfig((prev) => ({ ...prev, bandCount: properties.band_count.value }));
+        if (properties.tilt_angle) setConfig((prev) => ({ ...prev, tiltAngle: properties.tilt_angle.value }));
+        
+        if (properties.bg_color) {
+           const c = properties.bg_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
+           setConfig((prev) => ({ ...prev, bgColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }));
+        }
+        if (properties.sum_color) {
+           const c = properties.sum_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
+           setConfig((prev) => ({ ...prev, sumLineColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }));
+        }
+
+        if (properties.time_flow_mode) setConfig((prev) => ({ ...prev, timeFlowMode: properties.time_flow_mode.value }));
+        if (properties.reverse_pitch_order) setConfig((prev) => ({ ...prev, reversePitchOrder: properties.reverse_pitch_order.value }));
+        if (properties.window_seconds) setConfig((prev) => ({ ...prev, windowSeconds: properties.window_seconds.value }));
+        if (properties.min_freq !== undefined) setConfig((prev) => ({ ...prev, minFreq: properties.min_freq.value }));
+        if (properties.max_freq) setConfig((prev) => ({ ...prev, maxFreq: properties.max_freq.value }));
+        if (properties.line_spacing) setConfig((prev) => ({ ...prev, lineSpacing: properties.line_spacing.value }));
+      }
+    };
+
+    // Poll until Wallpaper Engine API is ready
+    let started = false;
+    const initWEAudio = () => {
+      const isWE = (window as any).wallpaperPropertyListener || (window as any).wallpaperRegisterAudioListener;
+      if (isWE) {
+        setIsWallpaperMode(true);
+        if (engine && !started) {
+          started = true;
+          engine.startWallpaperEngine();
+          setActiveInput('wallpaper');
+        }
+      }
+    };
+
+    initWEAudio();
+    const interval = setInterval(initWEAudio, 200);
+    return () => clearInterval(interval);
+  }, [engine]);
+
   const handleMicClick = async () => {
     if (!engine) return;
     try {
@@ -224,19 +344,6 @@ export default function Home() {
     }
   };
 
-  const handleKeyboardSynthClick = async () => {
-    if (!engine) return;
-    try {
-      await engine.startKeyboardSynth();
-      setActiveInput('keyboard');
-      setIsInputSelectorOpen(false);
-      setToastMessage('Keyboard Synth Active! Play QWERTY keys (A S D F G H J K / W E T Y U) or MIDI keyboard!');
-      setTimeout(() => setToastMessage(null), 5000);
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Keyboard synth error.');
-    }
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !engine) return;
@@ -248,37 +355,6 @@ export default function Home() {
       setErrorMessage(null);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Error loading file.');
-    }
-  };
-
-  const handleYoutubeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!youtubeUrl.trim()) return;
-    const urlToLoad = youtubeUrl.trim();
-    setActiveYoutubeUrl(urlToLoad);
-    setActiveInput('youtube');
-    setIsInputSelectorOpen(false);
-    setErrorMessage(null);
-
-    if (engine && activeInput !== 'system') {
-      engine.startSystemAudio().then(() => {
-        setActiveInput('system');
-      }).catch(() => {
-        /* Canceled by user */
-      });
-    }
-  };
-
-  const handlePresetSelect = async (preset: PresetTrack) => {
-    if (!engine) return;
-    try {
-      setActivePreset(preset);
-      await engine.playPreset(preset);
-      setActiveInput('preset');
-      setIsInputSelectorOpen(false);
-      setErrorMessage(null);
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Preset playback error.');
     }
   };
 
@@ -367,9 +443,11 @@ export default function Home() {
 
   // Dynamically calculate bottom reserved height to guarantee ZERO graphic overlay!
   let bottomReservedHeight = 85;
-  if (isColorDrawerOpen || isSliceDrawerOpen) {
+  if (isWallpaperMode) {
+    bottomReservedHeight = 0;
+  } else if (isColorDrawerOpen || isSliceDrawerOpen) {
     bottomReservedHeight = 240;
-  } else if (activeInput === 'youtube' || activeInput === 'preset' || isInputSelectorOpen) {
+  } else if (isInputSelectorOpen) {
     bottomReservedHeight = 135;
   }
 
@@ -379,7 +457,7 @@ export default function Home() {
       <VisualizerCanvas engine={engine} config={config} bottomReservedHeight={bottomReservedHeight} />
 
       {/* Floating Header */}
-      <header className="floating-header">
+      <header className={`floating-header ui-layer ${isUiVisible ? 'ui-visible' : 'ui-hidden'}`}>
         <div className="brand-group">
           <Waves className="brand-icon" />
           <span className="brand-title">UNKNOWN FREQUENCIES</span>
@@ -389,15 +467,6 @@ export default function Home() {
           <HelpCircle className="inline-icon" /> Fourier Science
         </button>
       </header>
-
-      {/* Floating TOS-Compliant YouTube Player & Playlist Card */}
-      {activeYoutubeUrl && (
-        <YouTubePlayer
-          url={activeYoutubeUrl}
-          onClose={() => setActiveYoutubeUrl(null)}
-          onRequireAudioCapture={handleSystemAudioClick}
-        />
-      )}
 
       {/* Notification Toast */}
       {toastMessage && (
@@ -419,7 +488,10 @@ export default function Home() {
       )}
 
       {/* Minimal Space Control Dock */}
-      <div className="floating-dock">
+      <div 
+        className={`floating-dock ui-layer ${isUiVisible ? 'ui-visible' : 'ui-hidden'}`}
+        style={{ bottom: isWallpaperMode ? `${uiYOffset}%` : '2rem' }}
+      >
         {/* Custom Multi-Stop Gradient & Atmosphere Drawer */}
         {isColorDrawerOpen && (
           <div className="sub-dock-row color-picker-row multiline-drawer">
@@ -669,7 +741,7 @@ export default function Home() {
         )}
 
         {/* Audio Input Selector Sub-dock Drawer */}
-        {isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && (
+        {!isWallpaperMode && isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && (
           <div className="sub-dock-row input-selector-drawer">
             <button className={`mini-chip-btn ${activeInput === 'mic' ? 'active' : ''}`} onClick={handleMicClick}>
               <Mic className="tiny-icon" /> Live Mic
@@ -679,64 +751,16 @@ export default function Home() {
               <Monitor className="tiny-icon" /> Tab / System
             </button>
             
-            <button className={`mini-chip-btn ${activeInput === 'keyboard' ? 'active' : ''}`} onClick={handleKeyboardSynthClick}>
-              <Keyboard className="tiny-icon" /> QWERTY / MIDI Piano
-            </button>
-            
             <label className={`mini-chip-btn ${activeInput === 'file' ? 'active' : ''}`} title="Upload local audio file (100% Client-Side Local Processing Only)">
               <Upload className="tiny-icon" />
               <span>{uploadedFileName ? (uploadedFileName.length > 18 ? uploadedFileName.slice(0, 16) + '…' : uploadedFileName) : 'Local File'}</span>
               <input type="file" accept="audio/*" className="hidden-file-input" onChange={handleFileUpload} />
             </label>
-            
-            <button className={`mini-chip-btn ${activeInput === 'youtube' ? 'active' : ''}`} onClick={() => { setActiveInput('youtube'); setIsInputSelectorOpen(false); }}>
-              <Video className="tiny-icon text-red-400" /> YouTube
-            </button>
-            
-            <button className={`mini-chip-btn ${activeInput === 'preset' ? 'active' : ''}`} onClick={() => { setActiveInput('preset'); setIsInputSelectorOpen(false); }}>
-              <Music className="tiny-icon" /> Synth Presets
-            </button>
-          </div>
-        )}
-
-        {/* Sub-dock row for YouTube Link Input */}
-        {activeInput === 'youtube' && !isColorDrawerOpen && !isSliceDrawerOpen && (
-          <div className="sub-dock-row">
-            <form onSubmit={handleYoutubeSubmit} className="sub-dock-form">
-              <input
-                type="url"
-                placeholder="Paste Video or Playlist Link..."
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                className="sub-dock-input wide-input"
-                required
-              />
-              <button type="submit" className="mini-chip-btn active">
-                Load Player
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Sub-dock row for Demo Audio Presets */}
-        {activeInput === 'preset' && !isColorDrawerOpen && !isSliceDrawerOpen && (
-          <div className="sub-dock-row">
-            <button className={`mini-chip-btn ${activePreset === 'synth_chords' ? 'active' : ''}`} onClick={() => handlePresetSelect('synth_chords')}>
-              Synth
-            </button>
-            <button className={`mini-chip-btn ${activePreset === 'drum_beat' ? 'active' : ''}`} onClick={() => handlePresetSelect('drum_beat')}>
-              Drums
-            </button>
-            <button className={`mini-chip-btn ${activePreset === 'vocal_arpeggio' ? 'active' : ''}`} onClick={() => handlePresetSelect('vocal_arpeggio')}>
-              Arpeggio
-            </button>
-            <button className={`mini-chip-btn ${activePreset === 'frequency_sweep' ? 'active' : ''}`} onClick={() => handlePresetSelect('frequency_sweep')}>
-              Sweep
-            </button>
           </div>
         )}
 
         {/* Main Floating Pill Dock */}
+        {!isWallpaperMode && (
         <div className="dock-pill">
           {/* Audio Input Selector Toggle Button */}
           <button
@@ -749,18 +773,16 @@ export default function Home() {
           >
             {activeInput === 'mic' && <Mic className="inline-icon" />}
             {activeInput === 'system' && <Monitor className="inline-icon" />}
-            {activeInput === 'keyboard' && <Keyboard className="inline-icon" />}
+            {activeInput === 'wallpaper' && <Monitor className="inline-icon" />}
             {activeInput === 'file' && <Upload className="inline-icon" />}
-            {activeInput === 'youtube' && <Video className="inline-icon text-red-400" />}
-            {activeInput === 'preset' && <Music className="inline-icon" />}
             <span className="capitalize-text">
               {activeInput === 'file' && uploadedFileName
                 ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
-                : activeInput === 'keyboard' ? 'QWERTY Piano' : activeInput}
+                : activeInput}
             </span>
             <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
           </button>
-
+          
           <div className="pill-divider" />
 
           {/* Playback Transport Controls */}
@@ -807,6 +829,7 @@ export default function Home() {
             <span>Style</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* Educational Modal */}

@@ -90,25 +90,24 @@ export default function Home() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
   const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
-  const [forceHideUi, setForceHideUi] = useState<boolean>(false);
+  const [forceHideUi, setForceHideUi] = useState<boolean>(true);
   const [uiYOffset, setUiYOffset] = useState<number>(12);
 
   const [config, setConfig] = useState<VisualizerConfig>({
-    windowSeconds: 0.5,
-    minFreq: 20,
-    maxFreq: 3000,
-    bandCount: 45,
-    lineSpacing: 15,
+    windowSeconds: 1.0,
+    minFreq: 25,
+    maxFreq: 10000,
+    bandCount: 25,
+    lineSpacing: 19,
     gain: 1.0,
     showSummedWave: true,
-    glowBlur: 40,
-    fogDensity: 0.8,
-    opacity: 0.45,
+    glowBlur: 60,
+    fogDensity: 0.7,
     gradientDirection: 'vertical',
     gradientStops: [
       { id: '1', color: '#ffffff', offset: 0.0 },
-      { id: '2', color: '#888888', offset: 0.5 },
-      { id: '3', color: '#222222', offset: 1.0 },
+      { id: '2', color: '#999999', offset: 0.5 },
+      { id: '3', color: '#333333', offset: 1.0 },
     ],
     sumLineColor: '#ffffff',
     bgColor: '#020204',
@@ -116,6 +115,18 @@ export default function Home() {
     tiltAngle: 20,
     timeFlowMode: 'right_to_left',
     reversePitchOrder: false,
+    eqLow: 10,
+    eqMid: -10,
+    eqHigh: 10,
+    opacity: 0.8,
+    sumGain: 1.0,
+    sumThickness: 1.0,
+    sumYOffset: -60,
+    sumMode: 'standard',
+    starCount: 80,
+    waveSmoothing: 8,
+    audioSensitivity: 10,
+    widthTaper: 0,
   });
 
   useEffect(() => {
@@ -130,6 +141,16 @@ export default function Home() {
       audioEng.stopAllSources();
     };
   }, []);
+
+  // Synchronize AudioEngine parameters whenever engine or config changes
+  useEffect(() => {
+    if (!engine) return;
+    engine.setAudioSensitivity(config.audioSensitivity ?? 40);
+    engine.setWaveSmoothing(config.waveSmoothing ?? 5);
+    engine.setEqLow(config.eqLow ?? 0);
+    engine.setEqMid(config.eqMid ?? 0);
+    engine.setEqHigh(config.eqHigh ?? 0);
+  }, [engine, config.audioSensitivity, config.waveSmoothing, config.eqLow, config.eqMid, config.eqHigh]);
 
   // Synchronize URL Hash for 0ms shared theme loading
   useEffect(() => {
@@ -265,9 +286,12 @@ export default function Home() {
           });
         }
 
-        if (properties.audio_sensitivity && engine) {
-          engine.setAudioSensitivity(properties.audio_sensitivity.value);
+        if (properties.audio_sensitivity) {
+          const val = properties.audio_sensitivity.value;
+          setConfig((prev) => ({ ...prev, audioSensitivity: val }));
+          if (engine) engine.setAudioSensitivity(val);
         }
+        if (properties.master_gain) setConfig((prev) => ({ ...prev, gain: properties.master_gain.value }));
         if (properties.bloom) setConfig((prev) => ({ ...prev, glowBlur: properties.bloom.value }));
         if (properties.fog_density) setConfig((prev) => ({ ...prev, fogDensity: properties.fog_density.value / 100 }));
         if (properties.band_count) setConfig((prev) => ({ ...prev, bandCount: properties.band_count.value }));
@@ -282,12 +306,41 @@ export default function Home() {
            setConfig((prev) => ({ ...prev, sumLineColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }));
         }
 
+        if (properties.gradient_direction) setConfig((prev) => ({ ...prev, gradientDirection: properties.gradient_direction.value }));
+        if (properties.opacity !== undefined) setConfig((prev) => ({ ...prev, opacity: properties.opacity.value / 100 }));
+        if (properties.star_count !== undefined) setConfig((prev) => ({ ...prev, starCount: properties.star_count.value }));
+        if (properties.width_taper !== undefined) setConfig((prev) => ({ ...prev, widthTaper: properties.width_taper.value }));
+        if (properties.wave_smoothing !== undefined) {
+          const val = properties.wave_smoothing.value;
+          setConfig((prev) => ({ ...prev, waveSmoothing: val }));
+          if (engine) engine.setWaveSmoothing(val);
+        }
         if (properties.time_flow_mode) setConfig((prev) => ({ ...prev, timeFlowMode: properties.time_flow_mode.value }));
         if (properties.reverse_pitch_order) setConfig((prev) => ({ ...prev, reversePitchOrder: properties.reverse_pitch_order.value }));
         if (properties.window_seconds) setConfig((prev) => ({ ...prev, windowSeconds: properties.window_seconds.value }));
         if (properties.min_freq !== undefined) setConfig((prev) => ({ ...prev, minFreq: properties.min_freq.value }));
         if (properties.max_freq) setConfig((prev) => ({ ...prev, maxFreq: properties.max_freq.value }));
         if (properties.line_spacing) setConfig((prev) => ({ ...prev, lineSpacing: properties.line_spacing.value }));
+        if (properties.sum_gain !== undefined) setConfig((prev) => ({ ...prev, sumGain: properties.sum_gain.value }));
+        if (properties.sum_thickness !== undefined) setConfig((prev) => ({ ...prev, sumThickness: properties.sum_thickness.value }));
+        if (properties.sum_y_offset !== undefined) setConfig((prev) => ({ ...prev, sumYOffset: properties.sum_y_offset.value }));
+        if (properties.sum_mode !== undefined) setConfig((prev) => ({ ...prev, sumMode: properties.sum_mode.value }));
+
+        if (properties.eq_low !== undefined) {
+          const val = properties.eq_low.value;
+          setConfig((prev) => ({ ...prev, eqLow: val }));
+          if (engine) engine.setEqLow(val);
+        }
+        if (properties.eq_mid !== undefined) {
+          const val = properties.eq_mid.value;
+          setConfig((prev) => ({ ...prev, eqMid: val }));
+          if (engine) engine.setEqMid(val);
+        }
+        if (properties.eq_high !== undefined) {
+          const val = properties.eq_high.value;
+          setConfig((prev) => ({ ...prev, eqHigh: val }));
+          if (engine) engine.setEqHigh(val);
+        }
       }
     };
 

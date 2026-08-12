@@ -30,12 +30,12 @@ interface StarParticle {
   size: number;
 }
 const STAR_LIST: StarParticle[] = [];
-for (let i = 0; i < 40; i++) {
+for (let i = 0; i < 150; i++) {
   STAR_LIST.push({
-    xNorm: (Math.sin(i * 99) * 0.5 + 0.5),
-    yNorm: (Math.cos(i * 33) * 0.5 + 0.5),
+    xNorm: (Math.sin(i * 99 + 1.2) * 0.5 + 0.5),
+    yNorm: (Math.cos(i * 33 + 2.4) * 0.5 + 0.5),
     phase: i * 12,
-    size: (i % 3 === 0 ? 1.5 : 1),
+    size: (i % 4 === 0 ? 1.5 : (i % 7 === 0 ? 2.0 : 1.0)),
   });
 }
 
@@ -49,7 +49,7 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
   const animFrameId = useRef<number | null>(null);
 
   // Persistent reusable buffers & FPS auto-scaler state
-  const summedWaveformRef = useRef<Float32Array>(new Float32Array(3840));
+  const summedWaveformRef = useRef<Float32Array>(new Float32Array(LUT_SIZE));
   const cachedGradientRef = useRef<{ style: CanvasGradient | string; key: string } | null>(null);
 
   // Real-time FPS Auto-Scaler state
@@ -82,8 +82,8 @@ export const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({
 
       ctx.scale(dpr, dpr);
 
-      if (summedWaveformRef.current.length < width) {
-        summedWaveformRef.current = new Float32Array(width);
+      if (summedWaveformRef.current.length !== LUT_SIZE) {
+        summedWaveformRef.current = new Float32Array(LUT_SIZE);
       }
     };
 
@@ -214,7 +214,7 @@ function renderCanvas2D(
     ctx.restore();
   }
 
-  drawSpaceDust(ctx, width, height, globalTime);
+  drawSpaceDust(ctx, width, height, globalTime, config.starCount ?? 35);
 
   if (historyLen < 2) {
     drawFloatingStandbyPattern(ctx, width, height, config, globalTime, bottomReservedHeight);
@@ -274,11 +274,19 @@ function renderCanvas2D(
     const floatyOffset = Math.sin(globalTime * 1.2 + b * 0.18) * (isMobile ? 3 : 5);
     const effectiveB = config.reversePitchOrder ? (bandCount - 1 - b) : b;
 
-    const depthProgress = b / bandCount;
+    const depthProgress = b / (bandCount > 1 ? bandCount - 1 : 1);
     const zDistance = is3D ? (1.0 + depthProgress * 0.85 * Math.sin(pitchRad)) : 1.0;
     const scaleZ = 1.0 / zDistance;
 
-    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0);
+    const taper = config.widthTaper ?? 0;
+    let taperMult = 1.0;
+    if (taper > 0) {
+      taperMult = 1.0 - (depthProgress * (taper / 100.0) * 0.85);
+    } else if (taper < 0) {
+      taperMult = 1.0 - ((1.0 - depthProgress) * (-taper / 100.0) * 0.85);
+    }
+
+    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0) * Math.max(0.05, taperMult);
     const lineStartX = xCenter - linePlotWidth / 2;
     const lineEndX = lineStartX + linePlotWidth;
 
@@ -319,17 +327,18 @@ function renderCanvas2D(
       const amp = amp0 * (1 - frac) + amp1 * frac;
 
       const time = normPlotX * config.windowSeconds;
-      const sineCarrier = Math.sin(2 * Math.PI * baseFreq * time * 0.04);
+      const phaseB = effectiveB * 1.61803398875;
+      const sineCarrier = Math.sin(2 * Math.PI * baseFreq * time * 0.04 + phaseB);
 
       const lutIdx = Math.min(LUT_SIZE - 1, Math.max(0, Math.floor(normPlotX * (LUT_SIZE - 1))));
       const spatialWeight = SPATIAL_ENVELOPE_LUT[lutIdx];
 
       const maxAmpDisp = isMobile ? 35 : 50;
-      const displacement = amp * (15 + maxAmpDisp * config.gain) * (0.35 + 0.65 * sineCarrier) * spatialWeight * (is3D ? scaleZ * 1.1 : 1.0);
+      const carrierFactor = 0.20 + 0.80 * (0.5 + 0.5 * sineCarrier);
+      const displacement = amp * (15 + maxAmpDisp * config.gain) * carrierFactor * spatialWeight * (is3D ? scaleZ * 1.1 : 1.0);
       const currentY = lineBaseY - displacement;
 
-      const screenXIndex = Math.min(width - 1, Math.max(0, Math.floor(x)));
-      summedWaveform[screenXIndex] += displacement * 0.35;
+      summedWaveform[lutIdx] += displacement;
 
       if (firstPoint) {
         path.moveTo(x, currentY);
@@ -378,41 +387,58 @@ function renderCanvas2D(
     ctx.shadowBlur = 0;
   }
 
-  if (config.showSummedWave) {
-    const sumBaseY = centerScreenY - (ridgelineHeight / 2) + (isMobile ? 10 : 20);
+  const sumMode = config.sumMode || 'standard';
+
+  if (config.showSummedWave && sumMode !== 'none') {
+    const userYOffset = config.sumYOffset ?? 0;
+    const sumBaseY = centerScreenY - (ridgelineHeight / 2) + (isMobile ? 10 : 20) + userYOffset;
+    const sumGainMult = config.sumGain ?? 1.0;
+    const strokeWidth = (config.sumThickness ?? 3.0) * (isMobile ? 0.75 : 1.0);
+
     const sumPath = new Path2D();
+    const mirrorPath = new Path2D();
     let firstA = true;
+    let endX = startX + basePlotWidth;
 
     for (let x = startX; x <= startX + basePlotWidth; x += stepX) {
-      const totalDisp = summedWaveform[Math.floor(x)] * 0.72;
+      endX = x;
+      const normPlotX = (x - startX) / basePlotWidth;
+      const lutIdx = Math.min(LUT_SIZE - 1, Math.max(0, Math.floor(normPlotX * (LUT_SIZE - 1))));
+      const totalDisp = (summedWaveform[lutIdx] / Math.max(1, bandCount)) * 6.5 * sumGainMult;
       const y = Math.max(headerHeight + 20, sumBaseY - totalDisp);
+      const mirrorY = sumBaseY + totalDisp;
+
       if (firstA) {
         sumPath.moveTo(x, y);
+        mirrorPath.moveTo(x, mirrorY);
         firstA = false;
       } else {
         sumPath.lineTo(x, y);
+        mirrorPath.lineTo(x, mirrorY);
       }
     }
 
     if (bloomBlur > 2 && masterOpacity > 0.01 && !isFirefox) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.lineWidth = isMobile ? 4.0 : 5.5;
+      ctx.lineWidth = strokeWidth * 2.2;
       ctx.strokeStyle = config.sumLineColor || '#ffffff';
       ctx.shadowColor = config.sumLineColor || '#ffffff';
       ctx.shadowBlur = Math.min(35, bloomBlur * 2.5);
       ctx.globalAlpha = 0.5 * masterOpacity;
       ctx.stroke(sumPath);
+      if (sumMode === 'mirrored') ctx.stroke(mirrorPath);
       ctx.restore();
     }
 
     ctx.globalCompositeOperation = 'source-over';
-    ctx.lineWidth = isMobile ? 1.6 : 2.0;
+    ctx.lineWidth = strokeWidth;
     ctx.strokeStyle = config.sumLineColor || '#ffffff';
     ctx.shadowColor = config.sumLineColor || '#ffffff';
     ctx.shadowBlur = Math.min(isFirefox ? 20 : 12, bloomBlur * (isFirefox ? 1.0 : 0.6));
     ctx.globalAlpha = 1.0 * masterOpacity;
     ctx.stroke(sumPath);
+    if (sumMode === 'mirrored') ctx.stroke(mirrorPath);
     ctx.shadowBlur = 0;
   }
 }
@@ -567,6 +593,17 @@ function updateOffscreenFog(
   }
 }
 
+function colorToRgba(colorStr: string, alpha: number): string {
+  if (!colorStr) return `rgba(255, 255, 255, ${alpha})`;
+  if (colorStr.startsWith('rgb')) {
+    const matches = colorStr.match(/\d+/g);
+    if (matches && matches.length >= 3) {
+      return `rgba(${matches[0]}, ${matches[1]}, ${matches[2]}, ${alpha})`;
+    }
+  }
+  return hexToRgba(colorStr, alpha);
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   let c = hex.replace('#', '');
   if (c.length === 3) {
@@ -580,11 +617,11 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function drawSpaceDust(ctx: CanvasRenderingContext2D, width: number, height: number, time: number) {
+function drawSpaceDust(ctx: CanvasRenderingContext2D, width: number, height: number, time: number, starCount: number = 35) {
+  if (starCount <= 0) return;
   ctx.save();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-  const numStars = width < 768 ? 15 : 30;
-  for (let i = 0; i < numStars && i < STAR_LIST.length; i++) {
+  for (let i = 0; i < starCount && i < STAR_LIST.length; i++) {
     const star = STAR_LIST[i];
     const starX = star.xNorm * width;
     const starY = star.yNorm * height;

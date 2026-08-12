@@ -47,6 +47,17 @@ export interface VisualizerConfig {
   tiltAngle?: number; // 0 to 60 degrees tilt angle
   timeFlowMode?: 'left_to_right' | 'right_to_left' | 'center_out' | 'edges_in'; // Time flow direction
   reversePitchOrder?: boolean; // Toggle bass-to-treble vs treble-to-bass vertical stack
+  eqLow?: number; // -100 to +100 low frequency wave height boost (default 0)
+  eqMid?: number; // -100 to +100 mid frequency wave height boost (default 0)
+  eqHigh?: number; // -100 to +100 high frequency wave height boost (default 0)
+  sumGain?: number; // 0.0 to 5.0 sum line height multiplier (default 1.0)
+  sumThickness?: number; // 1.0 to 8.0 px stroke thickness (default 3.0)
+  sumYOffset?: number; // -150 to +150 px vertical position offset (default 0)
+  sumMode?: 'standard' | 'none' | 'mirrored'; // sum line rendering mode
+  starCount?: number; // 0 to 150 background space dust density (default 35)
+  waveSmoothing?: number; // 1 to 10 reaction smoothing (default 5)
+  audioSensitivity?: number; // 1 to 150 audio sensitivity (default 40)
+  widthTaper?: number; // -100 to +100 plane tapering (default 0)
 }
 
 export type PresetTrack = 'synth_chords' | 'drum_beat' | 'vocal_arpeggio' | 'frequency_sweep';
@@ -111,7 +122,12 @@ export class AudioEngine {
   private isPlaying: boolean = false;
   private isAudioResponsive: boolean = true;
   private audioSensitivity: number = 10.0;
+  private waveSmoothing: number = 5;
+  private eqLow: number = 0;
+  private eqMid: number = 0;
+  private eqHigh: number = 0;
   private wallpaperAudioData: number[] = new Array(128).fill(0);
+  private monoDataBuffer: Float32Array = new Float32Array(64);
 
   // Zero-GC Pre-allocated Reusable Buffer Pool
   private historyBuffer: Float32Array[] = [];
@@ -343,6 +359,28 @@ export class AudioEngine {
 
   public setAudioSensitivity(sensitivity: number): void {
     this.audioSensitivity = Math.max(1, Math.min(200, sensitivity));
+  }
+
+  public setWaveSmoothing(smoothing: number): void {
+    this.waveSmoothing = Math.max(1, Math.min(10, smoothing));
+  }
+
+  public setEqLow(low: number): void {
+    this.eqLow = Math.max(-100, Math.min(100, low));
+  }
+
+  public setEqMid(mid: number): void {
+    this.eqMid = Math.max(-100, Math.min(100, mid));
+  }
+
+  public setEqHigh(high: number): void {
+    this.eqHigh = Math.max(-100, Math.min(100, high));
+  }
+
+  public setEq(low: number, mid: number, high: number): void {
+    this.eqLow = Math.max(-100, Math.min(100, low));
+    this.eqMid = Math.max(-100, Math.min(100, mid));
+    this.eqHigh = Math.max(-100, Math.min(100, high));
   }
 
   public setAudioResponsive(isResponsive: boolean): void {
@@ -732,6 +770,12 @@ export class AudioEngine {
     const maxHz = Math.min(18000, Math.max(minHz + 10, maxFreq));
     const hzRatio = Math.max(1.0001, maxHz / Math.max(1, minHz));
 
+    const scaleLow = Math.pow(1.05, this.eqLow);
+    const scaleMid = Math.pow(1.05, this.eqMid);
+    const scaleHigh = Math.pow(1.05, this.eqHigh);
+    const smoothFactor = 0.05 + (this.waveSmoothing / 10.0) * 0.45;
+    const invSmooth = 1.0 - smoothFactor;
+
     for (let i = 0; i < bandCount; i++) {
       const fStart = minHz * Math.pow(hzRatio, i / bandCount);
       const fEnd = minHz * Math.pow(hzRatio, (i + 1) / bandCount);
@@ -746,9 +790,18 @@ export class AudioEngine {
         count++;
       }
       const avg = count > 0 ? sum / count : 0;
-      const rawVal = avg / 255.0;
+      
+      const normIndex = bandCount > 1 ? i / (bandCount - 1) : 0.5;
+      
+      // Full 1.0 plateau power across exact 1/3 cyan domains of screen sines:
+      const wLow = normIndex <= 0.33 ? 1.0 : Math.max(0, 1.0 - (normIndex - 0.33) / 0.15);
+      const wMid = normIndex < 0.33 ? Math.max(0, (normIndex - 0.20) / 0.13) : (normIndex <= 0.66 ? 1.0 : Math.max(0, 1.0 - (normIndex - 0.66) / 0.14));
+      const wHigh = normIndex >= 0.66 ? 1.0 : Math.max(0, (normIndex - 0.52) / 0.14);
+      
+      const eqMult = wLow * scaleLow + wMid * scaleMid + wHigh * scaleHigh;
+      const rawVal = (avg / 255.0) * eqMult;
 
-      const smoothed = this.prevBandValues[i] * 0.3 + rawVal * 0.7;
+      const smoothed = this.prevBandValues[i] * smoothFactor + rawVal * invSmooth;
       this.prevBandValues[i] = smoothed;
       bandValues[i] = smoothed;
     }
@@ -771,10 +824,15 @@ export class AudioEngine {
       ? (window as any).__globalWallpaperAudio
       : this.wallpaperAudioData;
     
-    const monoData = new Float32Array(64);
     for (let i = 0; i < 64; i++) {
-      monoData[i] = ((audioData[i] || 0) + (audioData[i + 64] || 0)) / 2.0;
+      this.monoDataBuffer[i] = ((audioData[i] || 0) + (audioData[i + 64] || 0)) / 2.0;
     }
+
+    const scaleLow = Math.pow(1.05, this.eqLow);
+    const scaleMid = Math.pow(1.05, this.eqMid);
+    const scaleHigh = Math.pow(1.05, this.eqHigh);
+    const smoothFactor = 0.05 + (this.waveSmoothing / 10.0) * 0.45;
+    const invSmooth = 1.0 - smoothFactor;
     
     const binsPerBand = 64 / bandCount;
     for (let i = 0; i < bandCount; i++) {
@@ -784,14 +842,23 @@ export class AudioEngine {
       const endBin = Math.min(64, Math.floor((i + 1) * binsPerBand));
       
       for (let b = startBin; b < endBin; b++) {
-        sum += monoData[b] || 0;
+        sum += this.monoDataBuffer[b] || 0;
         count++;
       }
       
       const avg = count > 0 ? sum / count : 0;
-      const rawVal = Math.min(5.0, avg * (this.audioSensitivity * 2.5)); 
+
+      const normIndex = bandCount > 1 ? i / (bandCount - 1) : 0.5;
       
-      const smoothed = this.prevBandValues[i] * 0.25 + rawVal * 0.75;
+      // Full 1.0 plateau power across exact 1/3 cyan domains of screen sines:
+      const wLow = normIndex <= 0.33 ? 1.0 : Math.max(0, 1.0 - (normIndex - 0.33) / 0.15);
+      const wMid = normIndex < 0.33 ? Math.max(0, (normIndex - 0.20) / 0.13) : (normIndex <= 0.66 ? 1.0 : Math.max(0, 1.0 - (normIndex - 0.66) / 0.14));
+      const wHigh = normIndex >= 0.66 ? 1.0 : Math.max(0, (normIndex - 0.52) / 0.14);
+      
+      const eqMult = wLow * scaleLow + wMid * scaleMid + wHigh * scaleHigh;
+      const rawVal = Math.min(50.0, avg * (this.audioSensitivity * 2.5) * eqMult); 
+      
+      const smoothed = this.prevBandValues[i] * smoothFactor + rawVal * invSmooth;
       this.prevBandValues[i] = smoothed;
       bandValues[i] = smoothed;
     }

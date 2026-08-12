@@ -12,7 +12,7 @@
         "order": 1,
         "text": "Theme Preset",
         "type": "combo",
-        "value": "custom",
+        "value": "pulsar_white",
         "options": [
           { "label": "Custom Colors", "value": "custom" },
           { "label": "Cyber Sunset", "value": "cyber_sunset" },
@@ -21,92 +21,116 @@
           { "label": "Deep Emerald", "value": "deep_emerald" }
         ]
       },
-      "audio_sensitivity": {
+      "gradient_direction": {
         "order": 2,
-        "text": "Audio Sensitivity",
-        "type": "slider",
-        "value": 40,
-        "min": 1,
-        "max": 150,
-        "fraction": false
-      },
-
-
-      "hide_ui": {
-        "order": 4,
-        "text": "Force Hide UI",
-        "type": "bool",
-        "value": false
-      },
-
-      "bloom": {
-        "order": 6,
-        "text": "Bloom/Glow",
-        "type": "slider",
-        "value": 40,
-        "min": 0,
-        "max": 60,
-        "fraction": false
-      },
-      "fog_density": {
-        "order": 7,
-        "text": "Fog Volume",
-        "type": "slider",
-        "value": 80,
-        "min": 0,
-        "max": 100,
-        "fraction": false
-      },
-      "band_count": {
-        "order": 8,
-        "text": "Sine Count",
-        "type": "slider",
-        "value": 45,
-        "min": 8,
-        "max": 64,
-        "fraction": false
-      },
-      "tilt_angle": {
-        "order": 9,
-        "text": "3D Tilt Angle",
-        "type": "slider",
-        "value": 20,
-        "min": 15,
-        "max": 75,
-        "fraction": false
-      },
-      "bg_color": {
-        "order": 10,
-        "text": "Background Color",
-        "type": "color",
-        "value": "0.0078 0.0078 0.0157"
-      },
-      "sum_color": {
-        "order": 11,
-        "text": "Sum Line Color",
-        "type": "color",
-        "value": "1.0 1.0 1.0"
+        "text": "Gradient Direction",
+        "type": "combo",
+        "value": "vertical",
+        "options": [
+          { "label": "Vertical (Front → Back)", "value": "vertical" },
+          { "label": "Horizontal (Left → Right)", "value": "horizontal" },
+          { "label": "Diagonal", "value": "diagonal" }
+        ]
       },
       "primary_color": {
-        "order": 12,
+        "order": 3,
         "text": "Start Line Color (Custom)",
         "type": "color",
         "value": "1.0 1.0 1.0"
       },
       "mid_color": {
-        "order": 13,
+        "order": 4,
         "text": "Mid Line Color (Custom)",
         "type": "color",
         "value": "0.6 0.6 0.6"
       },
       "secondary_color": {
-        "order": 14,
+        "order": 5,
         "text": "End Line Color (Custom)",
         "type": "color",
         "value": "0.2 0.2 0.2"
       },
-      "time_flow_mode": {
+      "bg_color": {
+        "order": 6,
+        "text": "Background Color",
+        "type": "color",
+        "value": "0.0078 0.0078 0.0157"
+      },
+      "bloom": {
+        "order": 7,
+        "text": "Glow / Bloom Strength",
+        "type": "slider",
+        "value": 60,
+        "min": 0,
+        "max": 60,
+        "fraction": false
+      },
+      "fog_density": {
+        "order": 8,
+        "text": "Atmospheric Fog Volume",
+        "type": "slider",
+        "value": 70,
+        "min": 0,
+        "max": 100,
+        "fraction": false
+      },
+      "audio_sensitivity": {
+        "order": 9,
+        "text": "Audio Sensitivity",
+        "type": "slider",
+        "value": 10,
+        "min": 1,
+        "max": 150,
+        "fraction": false
+      },
+      "master_gain": {
+        "order": 10,
+        "text": "Master Wave Height Multiplier",
+        "type": "slider",
+        "value": 1.0,
+        "min": 0.1,
+        "max": 5.0,
+        "precision": 2,
+        "fraction": true
+      },
+      "eq_low": {
+        "order": 11,
+        "text": "Low (Bass) Height Boost",
+        "type": "slider",
+        "value": 10,
+        "min": -100,
+        "max": 100,
+        "fraction": false
+      },
+      "eq_mid": {
+        "order": 12,
+        "text": "Mid (Mids) Height Boost",
+        "type": "slider",
+        "value": -10,
+        "min": -100,
+        "max": 100,
+        "fraction": false
+      },
+      "eq_high": {
+        "order": 13,
+        "text": "High (Treble) Height Boost",
+        "type": "slider",
+        "value": 10,
+        "min": -100,
+        "max": 100,
+        "fraction": false
+      },
+      "wave_smoothing": {
         "order": 14,
+        "text": "Wave Reaction Smoothing",
+        "type": "slider",
+        "value": 8,
+        "min": 1,
+        "max": 10,
+        "fraction": false
+      },
+      "time_flow_mode": {
+        "order": 15,
         "text": "Horizontal Wave Flow Direction",
         "type": "combo",
         "value": "right_to_left",
@@ -117,48 +141,145 @@
           { "label": "Edges → In", "value": "edges_in" }
         ]
       },
-      "reverse_pitch_order": {
-        "order": 15,
-        "text": "Reverse Pitch Stack (High → Low)",
-        "type": "bool",
-        "value": false
-      },
       "window_seconds": {
         "order": 16,
-        "text": "Time Window (Seconds)",
+        "text": "Time Window / Flow Speed",
         "type": "slider",
-        "value": 0.5,
+        "value": 1.0,
         "min": 0.25,
         "max": 5.0,
         "precision": 2,
         "fraction": true
       },
-      "min_freq": {
+      "line_spacing": {
         "order": 17,
-        "text": "Min Pitch (Hz)",
+        "text": "Line Spacing (px)",
+        "type": "slider",
+        "value": 19,
+        "min": 4,
+        "max": 30,
+        "fraction": false
+      },
+      "band_count": {
+        "order": 18,
+        "text": "Sine Count",
+        "type": "slider",
+        "value": 25,
+        "min": 8,
+        "max": 64,
+        "fraction": false
+      },
+      "tilt_angle": {
+        "order": 19,
+        "text": "3D Tilt Angle",
         "type": "slider",
         "value": 20,
+        "min": 15,
+        "max": 75,
+        "fraction": false
+      },
+      "width_taper": {
+        "order": 20,
+        "text": "3D Plane Tapering (-Back / +Front)",
+        "type": "slider",
+        "value": 0,
+        "min": -100,
+        "max": 100,
+        "fraction": false
+      },
+      "opacity": {
+        "order": 21,
+        "text": "Master Ridgeline Opacity (%)",
+        "type": "slider",
+        "value": 80,
+        "min": 10,
+        "max": 100,
+        "fraction": false
+      },
+      "reverse_pitch_order": {
+        "order": 22,
+        "text": "Reverse Pitch Stack (High → Low)",
+        "type": "bool",
+        "value": false
+      },
+      "min_freq": {
+        "order": 23,
+        "text": "Min Pitch (Hz)",
+        "type": "slider",
+        "value": 25,
         "min": 0,
         "max": 1000,
         "fraction": false
       },
       "max_freq": {
-        "order": 18,
+        "order": 24,
         "text": "Max Pitch (Hz)",
         "type": "slider",
-        "value": 3000,
+        "value": 10000,
         "min": 500,
         "max": 16000,
         "fraction": false
       },
-      "line_spacing": {
-        "order": 19,
-        "text": "Line Spacing (px)",
+      "sum_mode": {
+        "order": 25,
+        "text": "Sum Line Style",
+        "type": "combo",
+        "value": "standard",
+        "options": [
+          { "label": "Standard Line", "value": "standard" },
+          { "label": "No Sum Line", "value": "none" },
+          { "label": "Mirrored Wave", "value": "mirrored" }
+        ]
+      },
+      "sum_color": {
+        "order": 26,
+        "text": "Sum Line Color",
+        "type": "color",
+        "value": "1.0 1.0 1.0"
+      },
+      "sum_gain": {
+        "order": 27,
+        "text": "Sum Line Height Multiplier",
         "type": "slider",
-        "value": 15,
-        "min": 4,
-        "max": 30,
+        "value": 1.0,
+        "min": 0.0,
+        "max": 5.0,
+        "precision": 2,
+        "fraction": true
+      },
+      "sum_thickness": {
+        "order": 28,
+        "text": "Sum Line Thickness (px)",
+        "type": "slider",
+        "value": 1.0,
+        "min": 1.0,
+        "max": 8.0,
+        "precision": 1,
+        "fraction": true
+      },
+      "sum_y_offset": {
+        "order": 29,
+        "text": "Sum Line Vertical Offset (px)",
+        "type": "slider",
+        "value": -60,
+        "min": -150,
+        "max": 150,
         "fraction": false
+      },
+      "star_count": {
+        "order": 30,
+        "text": "Background Space Dust Density",
+        "type": "slider",
+        "value": 80,
+        "min": 0,
+        "max": 150,
+        "fraction": false
+      },
+      "hide_ui": {
+        "order": 31,
+        "text": "Force Hide Onscreen UI",
+        "type": "bool",
+        "value": true
       }
     }
   }

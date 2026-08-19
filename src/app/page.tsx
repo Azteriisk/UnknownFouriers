@@ -1,4 +1,4 @@
-// src/app/page.tsx - Ridgeline Audio Visualizer with 3D Tilt, QWERTY Virtual Synth, 4K Snapshots & URL Theme Sharing
+// src/app/page.tsx - Ridgeline Audio Visualizer with 3D Tilt & Taper, EQ Boosts, Sum Wave Customizer, QWERTY Synth, YouTube Player & 4K Snapshots
 
 'use client';
 
@@ -14,6 +14,7 @@ import {
 } from '@/lib/audio/AudioEngine';
 import { VisualizerCanvas, download4KSnapshot } from '@/components/VisualizerCanvas';
 import { ExplanationModal } from '@/components/ExplanationModal';
+import { YouTubePlayer } from '@/components/YouTubePlayer';
 import {
   Waves,
   HelpCircle,
@@ -35,6 +36,8 @@ import {
   Box,
   Keyboard,
   Check,
+  Video,
+  Activity,
 } from 'lucide-react';
 
 const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: GradientStop[] }[] = [
@@ -85,9 +88,12 @@ export default function Home() {
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
   const [isColorDrawerOpen, setIsColorDrawerOpen] = useState<boolean>(false);
   const [isSliceDrawerOpen, setIsSliceDrawerOpen] = useState<boolean>(false);
+  const [isEqDrawerOpen, setIsEqDrawerOpen] = useState<boolean>(false);
   const [isInputSelectorOpen, setIsInputSelectorOpen] = useState<boolean>(false);
   const [activePreset, setActivePreset] = useState<PresetTrack>('vocal_arpeggio');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [activeYoutubeUrl, setActiveYoutubeUrl] = useState<string | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState<string>('https://www.youtube.com/watch?v=k3WKMtv2t-I');
   const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
   const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
   const [forceHideUi, setForceHideUi] = useState<boolean>(true);
@@ -249,27 +255,27 @@ export default function Home() {
         if (properties.hide_ui) {
           setForceHideUi(properties.hide_ui.value);
         }
-        if (properties.ui_y_offset !== undefined) {
-          setUiYOffset(properties.ui_y_offset.value);
+        if (properties.ui_position) {
+          setUiYOffset(properties.ui_position.value);
         }
-        const themeSelected = properties.theme && properties.theme.value !== 'custom';
-        if (themeSelected) {
+
+        if (properties.theme) {
           const themeVal = properties.theme.value;
-          const preset = PRESET_GRADIENTS.find(p => p.name.toLowerCase().replace(' ', '_') === themeVal);
-          if (preset) {
-            setConfig(prev => ({
-              ...prev,
-              gradientDirection: preset.direction,
-              gradientStops: preset.stops.map(s => ({ ...s }))
-            }));
+          if (themeVal !== 'custom') {
+            const found = PRESET_GRADIENTS.find((p) => p.name.toLowerCase().replace(' ', '_') === themeVal);
+            if (found) {
+              setConfig((prev) => ({
+                ...prev,
+                gradientDirection: found.direction,
+                gradientStops: found.stops.map((s) => ({ ...s })),
+              }));
+            }
           }
-        } else if (properties.primary_color || properties.mid_color || properties.secondary_color) {
+        }
+
+        if (properties.primary_color || properties.mid_color || properties.secondary_color) {
           setConfig((prev) => {
-            const newStops = prev.gradientStops.length === 3 ? [...prev.gradientStops.map(s => ({ ...s }))] : [
-              { id: '1', color: '#ffffff', offset: 0.0 },
-              { id: '2', color: '#888888', offset: 0.5 },
-              { id: '3', color: '#222222', offset: 1.0 },
-            ];
+            const newStops = [...prev.gradientStops];
             if (properties.primary_color) {
               const c = properties.primary_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
               if (newStops[0]) newStops[0].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
@@ -397,6 +403,15 @@ export default function Home() {
     }
   };
 
+  const handleKeyboardSynthClick = () => {
+    if (!engine) return;
+    engine.stopAllSources();
+    setActiveInput('keyboard');
+    setIsInputSelectorOpen(false);
+    setToastMessage('Play notes with your computer keyboard (A-S-D-F-G-H-J-K, W-E-T-Y-U) or MIDI!');
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !engine) return;
@@ -409,6 +424,22 @@ export default function Home() {
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Error loading file.');
     }
+  };
+
+  const handlePresetSelect = (track: PresetTrack) => {
+    if (!engine) return;
+    setActivePreset(track);
+    setActiveInput('preset');
+    setIsInputSelectorOpen(false);
+    engine.playPreset(track);
+  };
+
+  const handleYoutubeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!youtubeUrl.trim()) return;
+    setActiveYoutubeUrl(youtubeUrl.trim());
+    setActiveInput('youtube');
+    setIsInputSelectorOpen(false);
   };
 
   const handleTogglePlay = () => {
@@ -498,10 +529,10 @@ export default function Home() {
   let bottomReservedHeight = 85;
   if (isWallpaperMode) {
     bottomReservedHeight = 0;
-  } else if (isColorDrawerOpen || isSliceDrawerOpen) {
+  } else if (isColorDrawerOpen || isSliceDrawerOpen || isEqDrawerOpen) {
     bottomReservedHeight = 240;
-  } else if (isInputSelectorOpen) {
-    bottomReservedHeight = 135;
+  } else if (isInputSelectorOpen || activeInput === 'youtube' || activeInput === 'preset') {
+    bottomReservedHeight = 145;
   }
 
   return (
@@ -520,6 +551,15 @@ export default function Home() {
           <HelpCircle className="inline-icon" /> Fourier Science
         </button>
       </header>
+
+      {/* Floating TOS-Compliant YouTube Player & Playlist Card */}
+      {!isWallpaperMode && activeYoutubeUrl && (
+        <YouTubePlayer
+          url={activeYoutubeUrl}
+          onClose={() => setActiveYoutubeUrl(null)}
+          onRequireAudioCapture={handleSystemAudioClick}
+        />
+      )}
 
       {/* Notification Toast */}
       {toastMessage && (
@@ -545,7 +585,7 @@ export default function Home() {
         className={`floating-dock ui-layer ${isUiVisible ? 'ui-visible' : 'ui-hidden'}`}
         style={{ bottom: isWallpaperMode ? `${uiYOffset}%` : '2rem' }}
       >
-        {/* Custom Multi-Stop Gradient & Atmosphere Drawer */}
+        {/* Custom Multi-Stop Gradient, 3D & Atmosphere Drawer */}
         {isColorDrawerOpen && (
           <div className="sub-dock-row color-picker-row multiline-drawer">
             {/* Direction Selector & Presets */}
@@ -605,28 +645,8 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Other Color Controls */}
+            {/* 3D Geometry & Taper Controls */}
             <div className="drawer-section">
-              <label className="color-picker-label">
-                <span>Sum Wave:</span>
-                <input
-                  type="color"
-                  value={config.sumLineColor}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, sumLineColor: e.target.value }))}
-                  className="color-input"
-                />
-              </label>
-
-              <label className="color-picker-label">
-                <span>Background:</span>
-                <input
-                  type="color"
-                  value={config.bgColor}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, bgColor: e.target.value }))}
-                  className="color-input"
-                />
-              </label>
-
               <button
                 className={`mini-chip-btn ${config.is3DTilt ? 'active' : ''}`}
                 onClick={() => setConfig((prev) => ({ ...prev, is3DTilt: !prev.is3DTilt }))}
@@ -664,8 +684,87 @@ export default function Home() {
               </label>
             </div>
 
-            {/* Sliders */}
+            {/* Sum Wave Settings */}
+            <div className="drawer-section">
+              <label className="color-picker-label">
+                <span>Sum Mode:</span>
+                <select
+                  value={config.sumMode ?? 'standard'}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, sumMode: e.target.value as any }))}
+                  className="sub-dock-select"
+                >
+                  <option value="standard">Standard Line</option>
+                  <option value="mirrored">Mirrored Wave</option>
+                  <option value="none">No Sum Line</option>
+                </select>
+              </label>
+
+              {config.sumMode !== 'none' && (
+                <>
+                  <label className="color-picker-label">
+                    <span>Sum Color:</span>
+                    <input
+                      type="color"
+                      value={config.sumLineColor}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, sumLineColor: e.target.value }))}
+                      className="color-input"
+                    />
+                  </label>
+
+                  <label className="color-picker-label slider-label">
+                    <span>Sum Gain: ({(config.sumGain ?? 1.0).toFixed(1)}x)</span>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="5.0"
+                      step="0.1"
+                      value={config.sumGain ?? 1.0}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, sumGain: parseFloat(e.target.value) }))}
+                      className="sub-dock-slider"
+                    />
+                  </label>
+
+                  <label className="color-picker-label slider-label">
+                    <span>Thickness: ({(config.sumThickness ?? 1.0).toFixed(1)}px)</span>
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="8.0"
+                      step="0.5"
+                      value={config.sumThickness ?? 1.0}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, sumThickness: parseFloat(e.target.value) }))}
+                      className="sub-dock-slider"
+                    />
+                  </label>
+
+                  <label className="color-picker-label slider-label">
+                    <span>Offset: ({config.sumYOffset ?? -60}px)</span>
+                    <input
+                      type="range"
+                      min="-150"
+                      max="150"
+                      step="5"
+                      value={config.sumYOffset ?? -60}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, sumYOffset: parseInt(e.target.value) }))}
+                      className="sub-dock-slider"
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+
+            {/* Atmosphere & Look Sliders */}
             <div className="drawer-section sliders-section">
+              <label className="color-picker-label">
+                <span>Background:</span>
+                <input
+                  type="color"
+                  value={config.bgColor}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, bgColor: e.target.value }))}
+                  className="color-input"
+                />
+              </label>
+
               <label className="color-picker-label slider-label">
                 <span>Bloom: ({config.glowBlur}px)</span>
                 <input
@@ -693,6 +792,19 @@ export default function Home() {
               </label>
 
               <label className="color-picker-label slider-label">
+                <span>Dust Density: ({config.starCount ?? 80})</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="150"
+                  step="5"
+                  value={config.starCount ?? 80}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, starCount: parseInt(e.target.value) }))}
+                  className="sub-dock-slider"
+                />
+              </label>
+
+              <label className="color-picker-label slider-label">
                 <span>Opacity: ({Math.round((config.opacity ?? 1.0) * 100)}%)</span>
                 <input
                   type="range"
@@ -708,6 +820,77 @@ export default function Home() {
               <button className="mini-chip-btn" onClick={handleShareThemeClick}>
                 <Share2 className="tiny-icon" /> Share Theme
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* EQ & Dynamics Drawer */}
+        {isEqDrawerOpen && (
+          <div className="sub-dock-row multiline-drawer">
+            <div className="drawer-section sliders-section">
+              <label className="color-picker-label slider-label">
+                <span>Bass (Low): ({config.eqLow !== undefined && config.eqLow > 0 ? `+${config.eqLow}` : config.eqLow ?? 0}%)</span>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  step="5"
+                  value={config.eqLow ?? 0}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setConfig((prev) => ({ ...prev, eqLow: val }));
+                    if (engine) engine.setEqLow(val);
+                  }}
+                  className="sub-dock-slider"
+                />
+              </label>
+
+              <label className="color-picker-label slider-label">
+                <span>Mids (Center): ({config.eqMid !== undefined && config.eqMid > 0 ? `+${config.eqMid}` : config.eqMid ?? 0}%)</span>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  step="5"
+                  value={config.eqMid ?? 0}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setConfig((prev) => ({ ...prev, eqMid: val }));
+                    if (engine) engine.setEqMid(val);
+                  }}
+                  className="sub-dock-slider"
+                />
+              </label>
+
+              <label className="color-picker-label slider-label">
+                <span>Treble (High): ({config.eqHigh !== undefined && config.eqHigh > 0 ? `+${config.eqHigh}` : config.eqHigh ?? 0}%)</span>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  step="5"
+                  value={config.eqHigh ?? 0}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setConfig((prev) => ({ ...prev, eqHigh: val }));
+                    if (engine) engine.setEqHigh(val);
+                  }}
+                  className="sub-dock-slider"
+                />
+              </label>
+
+              <label className="color-picker-label slider-label">
+                <span>Wave Height Gain: ({(config.gain ?? 1.0).toFixed(1)}x)</span>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="5.0"
+                  step="0.1"
+                  value={config.gain ?? 1.0}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, gain: parseFloat(e.target.value) }))}
+                  className="sub-dock-slider"
+                />
+              </label>
             </div>
           </div>
         )}
@@ -803,12 +986,46 @@ export default function Home() {
                   className="sub-dock-slider"
                 />
               </label>
+
+              <label className="color-picker-label slider-label">
+                <span>Smoothing: ({config.waveSmoothing ?? 8})</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={config.waveSmoothing ?? 8}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setConfig((prev) => ({ ...prev, waveSmoothing: val }));
+                    if (engine) engine.setWaveSmoothing(val);
+                  }}
+                  className="sub-dock-slider"
+                />
+              </label>
+
+              <label className="color-picker-label slider-label">
+                <span>Sensitivity: ({config.audioSensitivity ?? 10})</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="150"
+                  step="1"
+                  value={config.audioSensitivity ?? 10}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setConfig((prev) => ({ ...prev, audioSensitivity: val }));
+                    if (engine) engine.setAudioSensitivity(val);
+                  }}
+                  className="sub-dock-slider"
+                />
+              </label>
             </div>
           </div>
         )}
 
         {/* Audio Input Selector Sub-dock Drawer */}
-        {!isWallpaperMode && isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && (
+        {!isWallpaperMode && isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
           <div className="sub-dock-row input-selector-drawer">
             <button className={`mini-chip-btn ${activeInput === 'mic' ? 'active' : ''}`} onClick={handleMicClick}>
               <Mic className="tiny-icon" /> Live Mic
@@ -817,85 +1034,157 @@ export default function Home() {
             <button className={`mini-chip-btn ${activeInput === 'system' ? 'active' : ''}`} onClick={handleSystemAudioClick}>
               <Monitor className="tiny-icon" /> Tab / System
             </button>
+
+            <button className={`mini-chip-btn ${activeInput === 'keyboard' ? 'active' : ''}`} onClick={handleKeyboardSynthClick}>
+              <Keyboard className="tiny-icon" /> QWERTY / MIDI
+            </button>
             
             <label className={`mini-chip-btn ${activeInput === 'file' ? 'active' : ''}`} title="Upload local audio file (100% Client-Side Local Processing Only)">
               <Upload className="tiny-icon" />
               <span>{uploadedFileName ? (uploadedFileName.length > 18 ? uploadedFileName.slice(0, 16) + '…' : uploadedFileName) : 'Local File'}</span>
               <input type="file" accept="audio/*" className="hidden-file-input" onChange={handleFileUpload} />
             </label>
+
+            <button className={`mini-chip-btn ${activeInput === 'youtube' ? 'active' : ''}`} onClick={() => { setActiveInput('youtube'); setIsInputSelectorOpen(false); }}>
+              <Video className="tiny-icon text-red-400" /> YouTube
+            </button>
+
+            <button className={`mini-chip-btn ${activeInput === 'preset' ? 'active' : ''}`} onClick={() => { setActiveInput('preset'); setIsInputSelectorOpen(false); }}>
+              <Music className="tiny-icon" /> Presets
+            </button>
+          </div>
+        )}
+
+        {/* Sub-dock row for YouTube Link Input */}
+        {!isWallpaperMode && activeInput === 'youtube' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
+          <div className="sub-dock-row">
+            <form onSubmit={handleYoutubeSubmit} className="sub-dock-form">
+              <input
+                type="url"
+                placeholder="Paste YouTube Video or Playlist Link..."
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                className="sub-dock-input wide-input"
+                required
+              />
+              <button type="submit" className="mini-chip-btn active">
+                Load Player
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Sub-dock row for Demo Audio Presets */}
+        {!isWallpaperMode && activeInput === 'preset' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
+          <div className="sub-dock-row">
+            <button className={`mini-chip-btn ${activePreset === 'synth_chords' ? 'active' : ''}`} onClick={() => handlePresetSelect('synth_chords')}>
+              Synth
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'drum_beat' ? 'active' : ''}`} onClick={() => handlePresetSelect('drum_beat')}>
+              Drums
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'vocal_arpeggio' ? 'active' : ''}`} onClick={() => handlePresetSelect('vocal_arpeggio')}>
+              Arpeggio
+            </button>
+            <button className={`mini-chip-btn ${activePreset === 'frequency_sweep' ? 'active' : ''}`} onClick={() => handlePresetSelect('frequency_sweep')}>
+              Sweep
+            </button>
           </div>
         )}
 
         {/* Main Floating Pill Dock */}
         {!isWallpaperMode && (
-        <div className="dock-pill">
-          {/* Audio Input Selector Toggle Button */}
-          <button
-            className={`pill-item-btn ${isInputSelectorOpen ? 'active' : ''}`}
-            onClick={() => {
-              setIsInputSelectorOpen((prev) => !prev);
-              if (isColorDrawerOpen) setIsColorDrawerOpen(false);
-              if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
-            }}
-          >
-            {activeInput === 'mic' && <Mic className="inline-icon" />}
-            {activeInput === 'system' && <Monitor className="inline-icon" />}
-            {activeInput === 'wallpaper' && <Monitor className="inline-icon" />}
-            {activeInput === 'file' && <Upload className="inline-icon" />}
-            <span className="capitalize-text">
-              {activeInput === 'file' && uploadedFileName
-                ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
-                : activeInput}
-            </span>
-            <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
-          </button>
-          
-          <div className="pill-divider" />
+          <div className="dock-pill">
+            {/* Audio Input Selector Toggle Button */}
+            <button
+              className={`pill-item-btn ${isInputSelectorOpen ? 'active' : ''}`}
+              onClick={() => {
+                setIsInputSelectorOpen((prev) => !prev);
+                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+              }}
+            >
+              {activeInput === 'mic' && <Mic className="inline-icon" />}
+              {activeInput === 'system' && <Monitor className="inline-icon" />}
+              {activeInput === 'keyboard' && <Keyboard className="inline-icon" />}
+              {activeInput === 'wallpaper' && <Monitor className="inline-icon" />}
+              {activeInput === 'file' && <Upload className="inline-icon" />}
+              {activeInput === 'youtube' && <Video className="inline-icon text-red-400" />}
+              {activeInput === 'preset' && <Music className="inline-icon" />}
+              <span className="capitalize-text">
+                {activeInput === 'file' && uploadedFileName
+                  ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
+                  : activeInput === 'keyboard'
+                  ? 'QWERTY Piano'
+                  : activeInput}
+              </span>
+              <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            <div className="pill-divider" />
 
-          {/* Playback Transport Controls */}
-          <button className="pill-icon-btn" onClick={handleTogglePlay} title={isPlaying ? 'Pause' : 'Play'}>
-            {isPlaying ? <Pause className="inline-icon" /> : <Play className="inline-icon" />}
-          </button>
+            {/* Playback Transport Controls */}
+            <button className="pill-icon-btn" onClick={handleTogglePlay} title={isPlaying ? 'Pause' : 'Play'}>
+              {isPlaying ? <Pause className="inline-icon" /> : <Play className="inline-icon" />}
+            </button>
 
-          <button className="pill-icon-btn" onClick={handleStop} title="Stop">
-            <Square className="inline-icon" />
-          </button>
+            <button className="pill-icon-btn" onClick={handleStop} title="Stop">
+              <Square className="inline-icon" />
+            </button>
 
-          {/* 4K High-Res Snapshot Export Button */}
-          <button className="pill-icon-btn" onClick={handleSnapshotClick} title="Download 4K Canvas Snapshot PNG">
-            <Camera className="inline-icon" />
-          </button>
+            {/* 4K High-Res Snapshot Export Button */}
+            <button className="pill-icon-btn" onClick={handleSnapshotClick} title="Download 4K Canvas Snapshot PNG">
+              <Camera className="inline-icon" />
+            </button>
 
-          <div className="pill-divider" />
+            <div className="pill-divider" />
 
-          {/* Slice Controls Drawer Toggle */}
-          <button
-            className={`pill-item-btn ${isSliceDrawerOpen ? 'active' : ''}`}
-            onClick={() => {
-              setIsSliceDrawerOpen((prev) => !prev);
-              if (isColorDrawerOpen) setIsColorDrawerOpen(false);
-              if (isInputSelectorOpen) setIsInputSelectorOpen(false);
-            }}
-            title="Time Window & Frequency Range Slice Controls"
-          >
-            <SlidersHorizontal className="inline-icon" />
-            <span>Slice</span>
-          </button>
+            {/* Slice Controls Drawer Toggle */}
+            <button
+              className={`pill-item-btn ${isSliceDrawerOpen ? 'active' : ''}`}
+              onClick={() => {
+                setIsSliceDrawerOpen((prev) => !prev);
+                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+              }}
+              title="Time Window & Frequency Range Slice Controls"
+            >
+              <SlidersHorizontal className="inline-icon" />
+              <span>Slice</span>
+            </button>
 
-          {/* Gradients & Atmosphere Drawer Toggle */}
-          <button
-            className={`pill-item-btn ${isColorDrawerOpen ? 'active' : ''}`}
-            onClick={() => {
-              setIsColorDrawerOpen((prev) => !prev);
-              if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
-              if (isInputSelectorOpen) setIsInputSelectorOpen(false);
-            }}
-            title="Custom Multi-Stop Gradients & Atmosphere"
-          >
-            <Palette className="inline-icon" />
-            <span>Style</span>
-          </button>
-        </div>
+            {/* EQ & Dynamics Drawer Toggle */}
+            <button
+              className={`pill-item-btn ${isEqDrawerOpen ? 'active' : ''}`}
+              onClick={() => {
+                setIsEqDrawerOpen((prev) => !prev);
+                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+              }}
+              title="3-Band EQ & Wave Height Boosts"
+            >
+              <Activity className="inline-icon" />
+              <span>EQ</span>
+            </button>
+
+            {/* Gradients, 3D & Atmosphere Drawer Toggle */}
+            <button
+              className={`pill-item-btn ${isColorDrawerOpen ? 'active' : ''}`}
+              onClick={() => {
+                setIsColorDrawerOpen((prev) => !prev);
+                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+              }}
+              title="Custom Multi-Stop Gradients, 3D Taper & Atmosphere"
+            >
+              <Palette className="inline-icon" />
+              <span>Style</span>
+            </button>
+          </div>
         )}
       </div>
 

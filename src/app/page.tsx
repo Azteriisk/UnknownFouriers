@@ -1,4 +1,6 @@
-// src/app/page.tsx - Ridgeline Audio Visualizer with 3D Tilt & Taper, EQ Boosts, Sum Wave Customizer, QWERTY Synth, YouTube Player & 4K Snapshots
+// src/app/page.tsx - Web Version (Vercel)
+// Ridgeline Audio Visualizer with 3D Tilt & Taper, 3-Band EQ Boosts, Sum Wave Customizer,
+// QWERTY Synth, YouTube Video & Playlist Player, Presets, and 4K Snapshots.
 
 'use client';
 
@@ -64,8 +66,8 @@ const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: Gra
     direction: 'vertical',
     stops: [
       { id: '1', color: '#ffffff', offset: 0.0 },
-      { id: '2', color: '#888888', offset: 0.5 },
-      { id: '3', color: '#222222', offset: 1.0 },
+      { id: '2', color: '#999999', offset: 0.5 },
+      { id: '3', color: '#333333', offset: 1.0 },
     ],
   },
   {
@@ -94,10 +96,6 @@ export default function Home() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [activeYoutubeUrl, setActiveYoutubeUrl] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState<string>('');
-  const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
-  const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
-  const [forceHideUi, setForceHideUi] = useState<boolean>(false);
-  const [uiYOffset, setUiYOffset] = useState<number>(12);
 
   const [config, setConfig] = useState<VisualizerConfig>({
     windowSeconds: 0.4,
@@ -221,158 +219,6 @@ export default function Home() {
     };
   }, [activeInput, engine]);
 
-  // Auto-hide UI in Wallpaper Mode only
-  useEffect(() => {
-    if (!isWallpaperMode) {
-      setIsUiVisible(true);
-      return;
-    }
-
-    if (forceHideUi) {
-      setIsUiVisible(false);
-      return;
-    }
-
-    let timeout: ReturnType<typeof setTimeout>;
-    const handleMouseMove = () => {
-      setIsUiVisible(true);
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setIsUiVisible(false), 3000);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    timeout = setTimeout(() => setIsUiVisible(false), 3000);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      clearTimeout(timeout);
-    };
-  }, [isWallpaperMode, forceHideUi]);
-
-  // Wallpaper Engine Property & Audio Listener setup
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // Define Property Listener immediately so WE can send settings on load
-    (window as any).wallpaperPropertyListener = {
-      applyUserProperties: (properties: any) => {
-        if (properties.hide_ui) {
-          setForceHideUi(properties.hide_ui.value);
-        }
-        if (properties.ui_position) {
-          setUiYOffset(properties.ui_position.value);
-        }
-
-        if (properties.theme) {
-          const themeVal = properties.theme.value;
-          if (themeVal !== 'custom') {
-            const found = PRESET_GRADIENTS.find((p) => p.name.toLowerCase().replace(' ', '_') === themeVal);
-            if (found) {
-              setConfig((prev) => ({
-                ...prev,
-                gradientDirection: found.direction,
-                gradientStops: found.stops.map((s) => ({ ...s })),
-              }));
-            }
-          }
-        }
-
-        if (properties.primary_color || properties.mid_color || properties.secondary_color) {
-          setConfig((prev) => {
-            const newStops = [...prev.gradientStops];
-            if (properties.primary_color) {
-              const c = properties.primary_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
-              if (newStops[0]) newStops[0].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-            }
-            if (properties.mid_color) {
-              const c = properties.mid_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
-              if (newStops[1]) newStops[1].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-            }
-            if (properties.secondary_color) {
-              const c = properties.secondary_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
-              if (newStops[2]) newStops[2].color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-            }
-            return { ...prev, gradientStops: newStops };
-          });
-        }
-
-        if (properties.audio_sensitivity) {
-          const val = properties.audio_sensitivity.value;
-          setConfig((prev) => ({ ...prev, audioSensitivity: val }));
-          if (engine) engine.setAudioSensitivity(val);
-        }
-        if (properties.master_gain) setConfig((prev) => ({ ...prev, gain: properties.master_gain.value }));
-        if (properties.bloom) setConfig((prev) => ({ ...prev, glowBlur: properties.bloom.value }));
-        if (properties.fog_density) setConfig((prev) => ({ ...prev, fogDensity: properties.fog_density.value / 100 }));
-        if (properties.band_count) setConfig((prev) => ({ ...prev, bandCount: properties.band_count.value }));
-        if (properties.tilt_angle) setConfig((prev) => ({ ...prev, tiltAngle: properties.tilt_angle.value }));
-        
-        if (properties.bg_color) {
-           const c = properties.bg_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
-           setConfig((prev) => ({ ...prev, bgColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }));
-        }
-        if (properties.sum_color) {
-           const c = properties.sum_color.value.split(' ').map((v: string) => Math.round(parseFloat(v) * 255));
-           setConfig((prev) => ({ ...prev, sumLineColor: `rgb(${c[0]}, ${c[1]}, ${c[2]})` }));
-        }
-
-        if (properties.gradient_direction) setConfig((prev) => ({ ...prev, gradientDirection: properties.gradient_direction.value }));
-        if (properties.opacity !== undefined) setConfig((prev) => ({ ...prev, opacity: properties.opacity.value / 100 }));
-        if (properties.star_count !== undefined) setConfig((prev) => ({ ...prev, starCount: properties.star_count.value }));
-        if (properties.width_taper !== undefined) setConfig((prev) => ({ ...prev, widthTaper: properties.width_taper.value }));
-        if (properties.wave_smoothing !== undefined) {
-          const val = properties.wave_smoothing.value;
-          setConfig((prev) => ({ ...prev, waveSmoothing: val }));
-          if (engine) engine.setWaveSmoothing(val);
-        }
-        if (properties.time_flow_mode) setConfig((prev) => ({ ...prev, timeFlowMode: properties.time_flow_mode.value }));
-        if (properties.reverse_pitch_order) setConfig((prev) => ({ ...prev, reversePitchOrder: properties.reverse_pitch_order.value }));
-        if (properties.window_seconds) setConfig((prev) => ({ ...prev, windowSeconds: properties.window_seconds.value }));
-        if (properties.min_freq !== undefined) setConfig((prev) => ({ ...prev, minFreq: properties.min_freq.value }));
-        if (properties.max_freq) setConfig((prev) => ({ ...prev, maxFreq: properties.max_freq.value }));
-        if (properties.line_spacing) setConfig((prev) => ({ ...prev, lineSpacing: properties.line_spacing.value }));
-        if (properties.sum_gain !== undefined) setConfig((prev) => ({ ...prev, sumGain: properties.sum_gain.value }));
-        if (properties.sum_thickness !== undefined) setConfig((prev) => ({ ...prev, sumThickness: properties.sum_thickness.value }));
-        if (properties.sum_y_offset !== undefined) setConfig((prev) => ({ ...prev, sumYOffset: properties.sum_y_offset.value }));
-        if (properties.sum_mode !== undefined) setConfig((prev) => ({ ...prev, sumMode: properties.sum_mode.value }));
-
-        if (properties.eq_low !== undefined) {
-          const val = properties.eq_low.value;
-          setConfig((prev) => ({ ...prev, eqLow: val }));
-          if (engine) engine.setEqLow(val);
-        }
-        if (properties.eq_mid !== undefined) {
-          const val = properties.eq_mid.value;
-          setConfig((prev) => ({ ...prev, eqMid: val }));
-          if (engine) engine.setEqMid(val);
-        }
-        if (properties.eq_high !== undefined) {
-          const val = properties.eq_high.value;
-          setConfig((prev) => ({ ...prev, eqHigh: val }));
-          if (engine) engine.setEqHigh(val);
-        }
-      }
-    };
-
-    // Poll until Wallpaper Engine API is ready
-    let started = false;
-    const initWEAudio = () => {
-      const isWE = (window as any).wallpaperPropertyListener || (window as any).wallpaperRegisterAudioListener;
-      if (isWE) {
-        setIsWallpaperMode(true);
-        if (engine && !started) {
-          started = true;
-          engine.startWallpaperEngine();
-          setActiveInput('wallpaper');
-        }
-      }
-    };
-
-    initWEAudio();
-    const interval = setInterval(initWEAudio, 200);
-    return () => clearInterval(interval);
-  }, [engine]);
-
   const handleMicClick = async () => {
     if (!engine) return;
     try {
@@ -407,13 +253,17 @@ export default function Home() {
     }
   };
 
-  const handleKeyboardSynthClick = () => {
+  const handleKeyboardSynthClick = async () => {
     if (!engine) return;
-    engine.stopAllSources();
-    setActiveInput('keyboard');
-    setIsInputSelectorOpen(false);
-    setToastMessage('Play notes with your computer keyboard (A-S-D-F-G-H-J-K, W-E-T-Y-U) or MIDI!');
-    setTimeout(() => setToastMessage(null), 5000);
+    try {
+      await engine.startKeyboardSynth();
+      setActiveInput('keyboard');
+      setIsInputSelectorOpen(false);
+      setToastMessage('Keyboard Synth Active! Play QWERTY keys (A S D F G H J K / W E T Y U) or MIDI keyboard!');
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Keyboard synth error.');
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -430,20 +280,35 @@ export default function Home() {
     }
   };
 
-  const handlePresetSelect = (track: PresetTrack) => {
+  const handlePresetSelect = async (preset: PresetTrack) => {
     if (!engine) return;
-    setActivePreset(track);
-    setActiveInput('preset');
-    setIsInputSelectorOpen(false);
-    engine.playPreset(track);
+    try {
+      setActivePreset(preset);
+      await engine.playPreset(preset);
+      setActiveInput('preset');
+      setIsInputSelectorOpen(false);
+      setErrorMessage(null);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Preset playback error.');
+    }
   };
 
   const handleYoutubeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!youtubeUrl.trim()) return;
-    setActiveYoutubeUrl(youtubeUrl.trim());
+    const urlToLoad = youtubeUrl.trim();
+    setActiveYoutubeUrl(urlToLoad);
     setActiveInput('youtube');
     setIsInputSelectorOpen(false);
+    setErrorMessage(null);
+
+    if (engine && activeInput !== 'system') {
+      engine.startSystemAudio().then(() => {
+        setActiveInput('system');
+      }).catch(() => {
+        /* Canceled by user */
+      });
+    }
   };
 
   const handleTogglePlay = () => {
@@ -529,11 +394,9 @@ export default function Home() {
     }));
   };
 
-  // Dynamically calculate bottom reserved height to guarantee ZERO graphic overlay!
+  // Dynamically calculate bottom reserved height for clean canvas clearance
   let bottomReservedHeight = 85;
-  if (isWallpaperMode) {
-    bottomReservedHeight = 0;
-  } else if (isColorDrawerOpen || isSliceDrawerOpen || isEqDrawerOpen) {
+  if (isColorDrawerOpen || isSliceDrawerOpen || isEqDrawerOpen) {
     bottomReservedHeight = 240;
   } else if (isInputSelectorOpen || activeInput === 'youtube' || activeInput === 'preset') {
     bottomReservedHeight = 145;
@@ -545,7 +408,7 @@ export default function Home() {
       <VisualizerCanvas engine={engine} config={config} bottomReservedHeight={bottomReservedHeight} />
 
       {/* Floating Header */}
-      <header className={`floating-header ui-layer ${isUiVisible ? 'ui-visible' : 'ui-hidden'}`}>
+      <header className="floating-header">
         <div className="brand-group">
           <Waves className="brand-icon" />
           <span className="brand-title">UNKNOWN FREQUENCIES</span>
@@ -557,7 +420,7 @@ export default function Home() {
       </header>
 
       {/* Floating TOS-Compliant YouTube Player & Playlist Card */}
-      {!isWallpaperMode && activeYoutubeUrl && (
+      {activeYoutubeUrl && (
         <YouTubePlayer
           url={activeYoutubeUrl}
           onClose={() => setActiveYoutubeUrl(null)}
@@ -585,10 +448,7 @@ export default function Home() {
       )}
 
       {/* Minimal Space Control Dock */}
-      <div 
-        className={`floating-dock ui-layer ${isUiVisible ? 'ui-visible' : 'ui-hidden'}`}
-        style={{ bottom: isWallpaperMode ? `${uiYOffset}%` : '2rem' }}
-      >
+      <div className="floating-dock">
         {/* Custom Multi-Stop Gradient, 3D & Atmosphere Drawer */}
         {isColorDrawerOpen && (
           <div className="sub-dock-row color-picker-row multiline-drawer">
@@ -1040,7 +900,7 @@ export default function Home() {
             </button>
 
             <button className={`mini-chip-btn ${activeInput === 'keyboard' ? 'active' : ''}`} onClick={handleKeyboardSynthClick}>
-              <Keyboard className="tiny-icon" /> QWERTY / MIDI
+              <Keyboard className="tiny-icon" /> QWERTY / MIDI Piano
             </button>
             
             <label className={`mini-chip-btn ${activeInput === 'file' ? 'active' : ''}`} title="Upload local audio file (100% Client-Side Local Processing Only)">
@@ -1054,7 +914,7 @@ export default function Home() {
             </button>
 
             <button className={`mini-chip-btn ${activeInput === 'preset' ? 'active' : ''}`} onClick={() => { setActiveInput('preset'); setIsInputSelectorOpen(false); }}>
-              <Music className="tiny-icon" /> Presets
+              <Music className="tiny-icon" /> Synth Presets
             </button>
           </div>
         )}

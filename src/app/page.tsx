@@ -81,7 +81,7 @@ const PRESET_GRADIENTS: { name: string; direction: GradientDirection; stops: Gra
 
 export default function Home() {
   const [engine, setEngine] = useState<AudioEngine | null>(null);
-  const [activeInput, setActiveInput] = useState<AudioInputType>('system');
+  const [activeInput, setActiveInput] = useState<AudioInputType>('preset');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export default function Home() {
   const [activePreset, setActivePreset] = useState<PresetTrack>('vocal_arpeggio');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [activeYoutubeUrl, setActiveYoutubeUrl] = useState<string | null>(null);
-  const [youtubeUrl, setYoutubeUrl] = useState<string>('https://www.youtube.com/watch?v=k3WKMtv2t-I');
+  const [youtubeUrl, setYoutubeUrl] = useState<string>('');
   const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
   const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
   const [forceHideUi, setForceHideUi] = useState<boolean>(false);
@@ -1029,7 +1029,7 @@ export default function Home() {
         )}
 
         {/* Audio Input Selector Sub-dock Drawer */}
-        {!isWallpaperMode && isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
+        {isInputSelectorOpen && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
           <div className="sub-dock-row input-selector-drawer">
             <button className={`mini-chip-btn ${activeInput === 'mic' ? 'active' : ''}`} onClick={handleMicClick}>
               <Mic className="tiny-icon" /> Live Mic
@@ -1060,7 +1060,7 @@ export default function Home() {
         )}
 
         {/* Sub-dock row for YouTube Link Input */}
-        {!isWallpaperMode && activeInput === 'youtube' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
+        {activeInput === 'youtube' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
           <div className="sub-dock-row">
             <form onSubmit={handleYoutubeSubmit} className="sub-dock-form">
               <input
@@ -1079,7 +1079,7 @@ export default function Home() {
         )}
 
         {/* Sub-dock row for Demo Audio Presets */}
-        {!isWallpaperMode && activeInput === 'preset' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
+        {activeInput === 'preset' && !isColorDrawerOpen && !isSliceDrawerOpen && !isEqDrawerOpen && (
           <div className="sub-dock-row">
             <button className={`mini-chip-btn ${activePreset === 'synth_chords' ? 'active' : ''}`} onClick={() => handlePresetSelect('synth_chords')}>
               Synth
@@ -1097,99 +1097,98 @@ export default function Home() {
         )}
 
         {/* Main Floating Pill Dock */}
-        {!isWallpaperMode && (
-          <div className="dock-pill">
-            {/* Audio Input Selector Toggle Button */}
-            <button
-              className={`pill-item-btn ${isInputSelectorOpen ? 'active' : ''}`}
-              onClick={() => {
-                setIsInputSelectorOpen((prev) => !prev);
-                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
-                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
-                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
-              }}
-            >
-              {activeInput === 'mic' && <Mic className="inline-icon" />}
-              {activeInput === 'system' && <Monitor className="inline-icon" />}
-              {activeInput === 'keyboard' && <Keyboard className="inline-icon" />}
-              {activeInput === 'wallpaper' && <Monitor className="inline-icon" />}
-              {activeInput === 'file' && <Upload className="inline-icon" />}
-              {activeInput === 'youtube' && <Video className="inline-icon text-red-400" />}
-              {activeInput === 'preset' && <Music className="inline-icon" />}
-              <span className="capitalize-text">
-                {activeInput === 'file' && uploadedFileName
-                  ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
-                  : activeInput === 'keyboard'
-                  ? 'QWERTY Piano'
-                  : activeInput}
-              </span>
-              <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            <div className="pill-divider" />
+        <div className="dock-pill">
+          {/* Audio Input Selector Toggle Button */}
+          <button
+            className={`pill-item-btn ${isInputSelectorOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsInputSelectorOpen((prev) => !prev);
+              if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+              if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+              if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+            }}
+          >
+            {activeInput === 'mic' && <Mic className="inline-icon" />}
+            {activeInput === 'system' && <Monitor className="inline-icon" />}
+            {activeInput === 'keyboard' && <Keyboard className="inline-icon" />}
+            {activeInput === 'file' && <Upload className="inline-icon" />}
+            {activeInput === 'youtube' && <Video className="inline-icon text-red-400" />}
+            {activeInput === 'preset' && <Music className="inline-icon" />}
+            <span className="capitalize-text">
+              {activeInput === 'file' && uploadedFileName
+                ? (uploadedFileName.length > 12 ? uploadedFileName.slice(0, 10) + '…' : uploadedFileName)
+                : activeInput === 'keyboard'
+                ? 'QWERTY Piano'
+                : activeInput === 'preset'
+                ? 'Presets'
+                : activeInput}
+            </span>
+            <ChevronUp className={`tiny-icon transition-transform ${isInputSelectorOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          <div className="pill-divider" />
 
-            {/* Playback Transport Controls */}
-            <button className="pill-icon-btn" onClick={handleTogglePlay} title={isPlaying ? 'Pause' : 'Play'}>
-              {isPlaying ? <Pause className="inline-icon" /> : <Play className="inline-icon" />}
-            </button>
+          {/* Playback Transport Controls */}
+          <button className="pill-icon-btn" onClick={handleTogglePlay} title={isPlaying ? 'Pause' : 'Play'}>
+            {isPlaying ? <Pause className="inline-icon" /> : <Play className="inline-icon" />}
+          </button>
 
-            <button className="pill-icon-btn" onClick={handleStop} title="Stop">
-              <Square className="inline-icon" />
-            </button>
+          <button className="pill-icon-btn" onClick={handleStop} title="Stop">
+            <Square className="inline-icon" />
+          </button>
 
-            {/* 4K High-Res Snapshot Export Button */}
-            <button className="pill-icon-btn" onClick={handleSnapshotClick} title="Download 4K Canvas Snapshot PNG">
-              <Camera className="inline-icon" />
-            </button>
+          {/* 4K High-Res Snapshot Export Button */}
+          <button className="pill-icon-btn" onClick={handleSnapshotClick} title="Download 4K Canvas Snapshot PNG">
+            <Camera className="inline-icon" />
+          </button>
 
-            <div className="pill-divider" />
+          <div className="pill-divider" />
 
-            {/* Slice Controls Drawer Toggle */}
-            <button
-              className={`pill-item-btn ${isSliceDrawerOpen ? 'active' : ''}`}
-              onClick={() => {
-                setIsSliceDrawerOpen((prev) => !prev);
-                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
-                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
-                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
-              }}
-              title="Time Window & Frequency Range Slice Controls"
-            >
-              <SlidersHorizontal className="inline-icon" />
-              <span>Slice</span>
-            </button>
+          {/* Slice Controls Drawer Toggle */}
+          <button
+            className={`pill-item-btn ${isSliceDrawerOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsSliceDrawerOpen((prev) => !prev);
+              if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+              if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+              if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+            }}
+            title="Time Window & Frequency Range Slice Controls"
+          >
+            <SlidersHorizontal className="inline-icon" />
+            <span>Slice</span>
+          </button>
 
-            {/* EQ & Dynamics Drawer Toggle */}
-            <button
-              className={`pill-item-btn ${isEqDrawerOpen ? 'active' : ''}`}
-              onClick={() => {
-                setIsEqDrawerOpen((prev) => !prev);
-                if (isColorDrawerOpen) setIsColorDrawerOpen(false);
-                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
-                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
-              }}
-              title="3-Band EQ & Wave Height Boosts"
-            >
-              <Activity className="inline-icon" />
-              <span>EQ</span>
-            </button>
+          {/* EQ & Dynamics Drawer Toggle */}
+          <button
+            className={`pill-item-btn ${isEqDrawerOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsEqDrawerOpen((prev) => !prev);
+              if (isColorDrawerOpen) setIsColorDrawerOpen(false);
+              if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+              if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+            }}
+            title="3-Band EQ & Wave Height Boosts"
+          >
+            <Activity className="inline-icon" />
+            <span>EQ</span>
+          </button>
 
-            {/* Gradients, 3D & Atmosphere Drawer Toggle */}
-            <button
-              className={`pill-item-btn ${isColorDrawerOpen ? 'active' : ''}`}
-              onClick={() => {
-                setIsColorDrawerOpen((prev) => !prev);
-                if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
-                if (isEqDrawerOpen) setIsEqDrawerOpen(false);
-                if (isInputSelectorOpen) setIsInputSelectorOpen(false);
-              }}
-              title="Custom Multi-Stop Gradients, 3D Taper & Atmosphere"
-            >
-              <Palette className="inline-icon" />
-              <span>Style</span>
-            </button>
-          </div>
-        )}
+          {/* Gradients, 3D & Atmosphere Drawer Toggle */}
+          <button
+            className={`pill-item-btn ${isColorDrawerOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsColorDrawerOpen((prev) => !prev);
+              if (isSliceDrawerOpen) setIsSliceDrawerOpen(false);
+              if (isEqDrawerOpen) setIsEqDrawerOpen(false);
+              if (isInputSelectorOpen) setIsInputSelectorOpen(false);
+            }}
+            title="Custom Multi-Stop Gradients, 3D Taper & Atmosphere"
+          >
+            <Palette className="inline-icon" />
+            <span>Style</span>
+          </button>
+        </div>
       </div>
 
       {/* Educational Modal */}

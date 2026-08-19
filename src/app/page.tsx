@@ -96,7 +96,7 @@ export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState<string>('https://www.youtube.com/watch?v=k3WKMtv2t-I');
   const [isWallpaperMode, setIsWallpaperMode] = useState<boolean>(false);
   const [isUiVisible, setIsUiVisible] = useState<boolean>(true);
-  const [forceHideUi, setForceHideUi] = useState<boolean>(true);
+  const [forceHideUi, setForceHideUi] = useState<boolean>(false);
   const [uiYOffset, setUiYOffset] = useState<number>(12);
 
   const [config, setConfig] = useState<VisualizerConfig>({
@@ -221,11 +221,15 @@ export default function Home() {
     };
   }, [activeInput, engine]);
 
-  // Auto-hide UI in Wallpaper Mode
+  // Auto-hide UI in Wallpaper Mode only
   useEffect(() => {
-    if (!isWallpaperMode || forceHideUi) {
-      if (forceHideUi) setIsUiVisible(false);
-      else setIsUiVisible(true);
+    if (!isWallpaperMode) {
+      setIsUiVisible(true);
+      return;
+    }
+
+    if (forceHideUi) {
+      setIsUiVisible(false);
       return;
     }
 

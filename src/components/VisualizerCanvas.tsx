@@ -279,14 +279,9 @@ function renderCanvas2D(
     const scaleZ = 1.0 / zDistance;
 
     const taper = config.widthTaper ?? 0;
-    let taperMult = 1.0;
-    if (taper > 0) {
-      taperMult = 1.0 - (depthProgress * (taper / 100.0) * 0.85);
-    } else if (taper < 0) {
-      taperMult = 1.0 - ((1.0 - depthProgress) * (-taper / 100.0) * 0.85);
-    }
+    const taperMult = Math.max(0.05, 1.0 - (depthProgress - 0.5) * (taper / 100.0) * 0.85);
 
-    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0) * Math.max(0.05, taperMult);
+    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0) * taperMult;
     const lineStartX = xCenter - linePlotWidth / 2;
     const lineEndX = lineStartX + linePlotWidth;
 
@@ -677,8 +672,10 @@ function drawFloatingStandbyPattern(
     const depthProgress = b / config.bandCount;
     const zDistance = is3D ? (1.0 + depthProgress * 0.85 * Math.sin(pitchRad)) : 1.0;
     const scaleZ = 1.0 / zDistance;
+    const taper = config.widthTaper ?? 0;
+    const taperMult = Math.max(0.05, 1.0 - (depthProgress - 0.5) * (taper / 100.0) * 0.85);
 
-    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0);
+    const linePlotWidth = basePlotWidth * (is3D ? scaleZ : 1.0) * taperMult;
     const lineStartX = xCenter - linePlotWidth / 2;
     const lineEndX = lineStartX + linePlotWidth;
 

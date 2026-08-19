@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-we": "next build && powershell -Command \"Copy-Item -Path 'out\\_next', 'out\\index.html', 'out\\404.html', 'out\\icon.svg', 'out\\_not-found.html', 'out\\*.txt' -Destination 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\projects\\myprojects\\index\\' -Recurse -Force\""
   },
   "dependencies": {
     "lucide-react": "^1.29.0",

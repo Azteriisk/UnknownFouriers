@@ -648,6 +648,20 @@ export default function Home() {
                   />
                 </label>
               )}
+
+              <label className="color-picker-label slider-label">
+                <span>Taper: ({config.widthTaper ?? 0})</span>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  step="1"
+                  value={config.widthTaper ?? 0}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, widthTaper: parseInt(e.target.value) }))}
+                  className="sub-dock-slider"
+                  title="Plane Tapering: negative widens back, positive narrows back"
+                />
+              </label>
             </div>
 
             {/* Sliders */}

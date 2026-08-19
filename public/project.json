@@ -97,7 +97,7 @@
         "order": 11,
         "text": "Low (Bass) Height Boost",
         "type": "slider",
-        "value": 10,
+        "value": 15,
         "min": -100,
         "max": 100,
         "fraction": false
@@ -145,7 +145,7 @@
         "order": 16,
         "text": "Time Window / Flow Speed",
         "type": "slider",
-        "value": 1.0,
+        "value": 0.4,
         "min": 0.25,
         "max": 5.0,
         "precision": 2,
@@ -173,7 +173,7 @@
         "order": 19,
         "text": "3D Tilt Angle",
         "type": "slider",
-        "value": 20,
+        "value": 15,
         "min": 15,
         "max": 75,
         "fraction": false
@@ -182,7 +182,7 @@
         "order": 20,
         "text": "3D Plane Tapering (-Back / +Front)",
         "type": "slider",
-        "value": 0,
+        "value": 50,
         "min": -100,
         "max": 100,
         "fraction": false

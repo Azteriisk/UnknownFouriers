@@ -100,7 +100,7 @@ export default function Home() {
   const [uiYOffset, setUiYOffset] = useState<number>(12);
 
   const [config, setConfig] = useState<VisualizerConfig>({
-    windowSeconds: 1.0,
+    windowSeconds: 0.4,
     minFreq: 25,
     maxFreq: 10000,
     bandCount: 25,
@@ -118,10 +118,10 @@ export default function Home() {
     sumLineColor: '#ffffff',
     bgColor: '#020204',
     is3DTilt: true,
-    tiltAngle: 20,
+    tiltAngle: 15,
     timeFlowMode: 'right_to_left',
     reversePitchOrder: false,
-    eqLow: 10,
+    eqLow: 15,
     eqMid: -10,
     eqHigh: 10,
     opacity: 0.8,
@@ -132,7 +132,7 @@ export default function Home() {
     starCount: 80,
     waveSmoothing: 8,
     audioSensitivity: 10,
-    widthTaper: 0,
+    widthTaper: 50,
   });
 
   useEffect(() => {
